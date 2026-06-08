@@ -6,19 +6,27 @@
 
 ## Project
 
-Repository:
+Standalone repository:
+
+```text
+/Users/warren/LegoLeagueAutoDrive/cryptobots
+```
+
+Original reference repository:
 
 ```text
 /Users/warren/LegoLeagueAutoDrive/public.superpowered2022
 ```
 
-Active IDE file:
+The original SuperPowered repository is now only historical/reference context. The active project is the standalone `cryptobots` repo.
+
+Current key file:
 
 ```text
-src/main.py
+code/hub/main.py
 ```
 
-The user wants to adapt the SuperPowered 2022 robot project toward a LEGO SPIKE Prime datalogging workflow using stock LEGO SPIKE Prime MicroPython and Visual Studio Code, without Pybricks.
+The user wants a LEGO SPIKE Prime datalogging workflow using stock LEGO SPIKE Prime MicroPython and Visual Studio Code, without Pybricks.
 
 ## What Was Reviewed
 
@@ -43,13 +51,23 @@ Useful existing ideas:
 
 Do not overwrite the current EV3/Pybricks project.
 
-The SPIKE-specific implementation now lives under:
+The SPIKE-specific implementation now lives in its own standalone repo:
 
 ```text
-cryptobots/code/
+/Users/warren/LegoLeagueAutoDrive/cryptobots
 ```
 
-The user first clarified that the work was planning/documentation only, then later asked to proceed with the plan while keeping all new code in a code subfolder under `cryptobots`.
+It was moved out of `/Users/warren/LegoLeagueAutoDrive/public.superpowered2022` so it cannot be accidentally committed to the original repo.
+
+Local git state as of the move:
+
+```text
+branch: main
+commit: eb21777 Initial SPIKE datalogging kit
+remote: not set yet
+```
+
+The user still needs to create/provide a GitHub repository URL before pushing.
 
 ## Desired Datalogging Behavior
 
@@ -93,14 +111,14 @@ Computer-side:
 The current implementation contains:
 
 ```text
-cryptobots/code/README.md
-cryptobots/code/hub/logger.py
-cryptobots/code/hub/main.py
-cryptobots/code/hub/manual_gyro_logger.py
-cryptobots/code/hub/drive_log_example.py
-cryptobots/code/tools/collect_spike_logs.py
-cryptobots/code/tools/sample_hub_output.txt
-cryptobots/manual-gyro-datalogging-steps.md
+code/README.md
+code/hub/logger.py
+code/hub/main.py
+code/hub/manual_gyro_logger.py
+code/hub/drive_log_example.py
+code/tools/collect_spike_logs.py
+code/tools/sample_hub_output.txt
+manual-gyro-datalogging-steps.md
 ```
 
 `hub/main.py` defines `DataLog` and `LogSession` inside the same file so only one program must be uploaded to the hub. `hub/logger.py` is only a reference copy.
@@ -112,7 +130,7 @@ cryptobots/manual-gyro-datalogging-steps.md
 - left button: dump/download saved logs after connecting the computer
 - both buttons: clear saved logs
 
-Important: the SPIKE upload flow can only upload one hub program. Upload only `cryptobots/code/hub/main.py` for the recommended workflow.
+Important: the SPIKE upload flow can only upload one hub program. Upload only `code/hub/main.py` for the recommended workflow.
 
 It records:
 
@@ -173,4 +191,5 @@ The implementation documentation is in:
 - Do not use Pybricks.
 - Use Visual Studio Code.
 - Keep the original EV3/Pybricks code untouched.
-- Put new implementation code under `cryptobots/code`.
+- Keep `cryptobots` disconnected from the original SuperPowered repo.
+- Put implementation code under `code/`.

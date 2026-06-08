@@ -24,6 +24,14 @@ Generated CSV files:
 cryptobots/code/logs/
 ```
 
+If you opened the standalone `cryptobots` folder directly in VS Code, the same paths are:
+
+```text
+code/hub/main.py
+code/tools/collect_spike_logs.py
+code/logs/
+```
+
 ## Upload To The Hub
 
 1. Open the SPIKE Prime project in Visual Studio Code.
@@ -58,13 +66,13 @@ Do not turn off or reset the hub before downloading. The logs are stored in memo
 macOS/Linux example:
 
 ```bash
-python3 cryptobots/code/tools/collect_spike_logs.py --port /dev/cu.usbmodemXXXX
+python3 code/tools/collect_spike_logs.py --port /dev/cu.usbmodemXXXX
 ```
 
 Windows example:
 
 ```bash
-python cryptobots/code/tools/collect_spike_logs.py --port COM5
+python code/tools/collect_spike_logs.py --port COM5
 ```
 
 3. Press the left button on the SPIKE hub.
@@ -72,7 +80,7 @@ python cryptobots/code/tools/collect_spike_logs.py --port COM5
 5. The collector saves CSV files in:
 
 ```text
-cryptobots/code/logs/
+code/logs/
 ```
 
 ## Clear Old Logs

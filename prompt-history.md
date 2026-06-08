@@ -56,6 +56,24 @@ for now, I only need to do the datalogging, where a user can press a button to s
 you need to adjust the code.  we can only upload 1 program to the hub
 ```
 
+## Prompt 10
+
+```text
+i'd like to check in the cryptobots folder in to a new github repo.  can you help me with that
+```
+
+## Prompt 11
+
+```text
+Disconnect the project from the original repo.  I don't want to accidently write to that repo
+```
+
+## Prompt 12
+
+```text
+update the docs with any latest changes or context
+```
+
 ## Notes
 
 The current implementation focus is manual gyro/motion datalogging on SPIKE Prime using stock LEGO MicroPython.

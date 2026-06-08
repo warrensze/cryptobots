@@ -2,10 +2,28 @@
 
 This folder contains a starter datalogging kit for LEGO SPIKE Prime using stock LEGO SPIKE MicroPython. It does not use Pybricks and does not modify the original EV3/Pybricks SuperPowered code.
 
+## Repository
+
+This project is a standalone git repo at:
+
+```text
+/Users/warren/LegoLeagueAutoDrive/cryptobots
+```
+
+It was moved out of the original SuperPowered repo so commits and pushes happen only from this project.
+
+Initial local commit:
+
+```text
+eb21777 Initial SPIKE datalogging kit
+```
+
+A GitHub remote has not been added yet.
+
 ## Folder Layout
 
 ```text
-cryptobots/code/
+code/
   hub/
     main.py
     logger.py
@@ -57,7 +75,7 @@ Light matrix codes:
 7. Plug the hub back into the computer.
 8. Start the collector script.
 9. Press the left button on the hub. The hub shows `U` and dumps the saved data.
-10. CSV files appear in `cryptobots/code/logs/`.
+10. CSV files appear in `code/logs/`.
 
 The CSV columns are:
 
@@ -78,19 +96,19 @@ yaw_ddeg = 450 means yaw = 45.0 degrees
 If your setup exposes hub output as a serial port:
 
 ```bash
-python3 cryptobots/code/tools/collect_spike_logs.py --port /dev/cu.usbmodemXXXX
+python3 code/tools/collect_spike_logs.py --port /dev/cu.usbmodemXXXX
 ```
 
 On Windows, the port may look like:
 
 ```bash
-python cryptobots/code/tools/collect_spike_logs.py --port COM5
+python code/tools/collect_spike_logs.py --port COM5
 ```
 
 If you have saved hub output to a text file, parse it afterward:
 
 ```bash
-python3 cryptobots/code/tools/collect_spike_logs.py --file hub-output.txt
+python3 code/tools/collect_spike_logs.py --file hub-output.txt
 ```
 
 The collector looks for blocks like this:
