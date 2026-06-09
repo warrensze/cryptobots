@@ -17,6 +17,7 @@ from datetime import datetime
 from pathlib import Path
 import re
 import sys
+import time
 
 
 DEFAULT_LOG_DIR = Path(__file__).resolve().parents[1] / "logs"
@@ -199,10 +200,37 @@ def unique_path(path):
         counter += 1
 
 
+def iter_clean_lines(text):
+    if "\n" in text or "\r" in text:
+        for line in text.splitlines():
+            yield line
+        return
+
+    for match in re.finditer(
+        r"LOG_START\s*,\s*[^\s,]+"
+        r"|LOG_END\s*,\s*[^\s,]+"
+        r"|SESSION_START\s*,\s*\d+"
+        r"|SESSION_END\s*,\s*\d+"
+        r"|SESSION_DROPPED\s*,\s*\d+"
+        r"|LOG_DROPPED\s*,\s*\d+"
+        r"|time_ms\s*,\s*distance_mm\s*,\s*gyro_angle_deg"
+        r"|-?\d+\s*,\s*-?\d+\s*,\s*-?\d+",
+        text,
+    ):
+        yield re.sub(r"\s+", "", match.group(0))
+
+
+def process_text(text, collector):
+    line_count = 0
+    for line in iter_clean_lines(text):
+        collector.handle_line(line)
+        line_count += 1
+    return line_count
+
+
 def read_from_file(path, collector):
-    with Path(path).open("r", encoding="utf-8") as source:
-        for line in source:
-            collector.handle_line(line)
+    text = Path(path).read_text(encoding="utf-8")
+    process_text(text, collector)
 
 
 def read_from_stdin(collector):
@@ -219,13 +247,25 @@ def read_from_serial(port, baud, collector):
         print("  python3 -m pip install pyserial")
         return 2
 
-    print("Listening on serial port", port, "at", baud, "baud. Press Ctrl-C to stop.")
+    print("Listening on serial port", port, "at", baud, "baud.")
+    print("Press the hub's left button to dump logs. Press Ctrl-C when done.")
     try:
         with serial.Serial(port, baudrate=baud, timeout=1) as connection:
+            buffer = []
+            last_data_at = None
             while True:
-                raw = connection.readline()
+                raw = connection.read(4096)
                 if raw:
-                    collector.handle_line(raw.decode("utf-8", errors="replace"))
+                    buffer.append(raw.decode("utf-8", errors="replace"))
+                    last_data_at = time.monotonic()
+                    continue
+
+                if buffer and last_data_at and time.monotonic() - last_data_at >= 1:
+                    text = "".join(buffer)
+                    line_count = process_text(text, collector)
+                    print("info: parsed", line_count, "possible log line(s) from serial data")
+                    buffer = []
+                    last_data_at = None
     except serial.SerialException as error:
         print("error: could not read from serial port", port)
         print("details:", error)
