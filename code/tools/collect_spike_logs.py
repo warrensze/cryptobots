@@ -6,13 +6,16 @@ Input can come from:
 - a serial port, if your SPIKE setup exposes one
 - stdin, if another tool is piping hub output
 - a saved text file containing LOG_START / LOG_END blocks
+
+It also tries to recover copied hub output that lost the LOG_START / LOG_END
+markers, as long as the CSV header or numeric rows are still present.
 """
 
 import argparse
 import csv
 from datetime import datetime
 from pathlib import Path
-import re
+import rez
 import sys
 
 
@@ -25,10 +28,14 @@ class SpikeLogCollector:
         self.current_name = None
         self.current_rows = []
         self.saved_files = []
+        self.recovered_without_markers = False
 
     def handle_line(self, line):
         line = line.strip()
         if not line:
+            return
+
+        if is_noise_line(line):
             return
 
         fields = parse_csv_line(line)
@@ -40,6 +47,7 @@ class SpikeLogCollector:
         if marker == "LOG_START":
             self.current_name = fields[1] if len(fields) > 1 else "spike_log"
             self.current_rows = []
+            self.recovered_without_markers = False
             return
 
         if marker == "LOG_END":
@@ -47,14 +55,45 @@ class SpikeLogCollector:
             self._save_current_log(name)
             self.current_name = None
             self.current_rows = []
+            self.recovered_without_markers = False
             return
 
         if marker in ("SESSION_START", "SESSION_END", "SESSION_DROPPED", "LOG_DROPPED"):
             print("info:", line)
             return
 
-        if self.current_name is not None:
+        if looks_like_header(fields):
+            if self.current_name is None:
+                self.current_name = "recovered_spike_log"
+                self.current_rows = []
+                self.recovered_without_markers = True
             self.current_rows.append(fields)
+            return
+
+        if looks_like_data_row(fields) and self.current_name is None:
+            self.current_name = "recovered_spike_log"
+            self.current_rows = [default_headers_for_row(fields)]
+            self.recovered_without_markers = True
+
+        if self.current_name is not None:
+            if looks_like_data_row(fields):
+                self.current_rows.append(fields)
+            else:
+                print("info: skipped noisy line inside log:", line[:80])
+
+    def finish(self):
+        if self.current_name is None:
+            return
+
+        if self.recovered_without_markers:
+            print("warning: LOG_START/LOG_END markers were missing; saving recovered rows.")
+        else:
+            print("warning: LOG_END was missing; saving partial log.")
+
+        self._save_current_log(self.current_name)
+        self.current_name = None
+        self.current_rows = []
+        self.recovered_without_markers = False
 
     def _save_current_log(self, name):
         if not self.current_rows:
@@ -80,6 +119,55 @@ def parse_csv_line(line):
     except csv.Error:
         print("warning: could not parse line:", line)
         return []
+
+
+def is_noise_line(line):
+    text = line.lower()
+    return (
+        "error deserializing" in text
+        or "[hubupload]" in text
+        or "welcome to the lego hub log terminal" in text
+    )
+
+
+def looks_like_header(fields):
+    return len(fields) >= 2 and fields[0] == "time_ms"
+
+
+def looks_like_data_row(fields):
+    if len(fields) < 2:
+        return False
+
+    try:
+        int(fields[0])
+    except ValueError:
+        return False
+
+    numeric_count = 0
+    for value in fields[1:]:
+        try:
+            int(value)
+            numeric_count += 1
+        except ValueError:
+            pass
+
+    return numeric_count >= min(3, len(fields) - 1)
+
+
+def default_headers_for_row(fields):
+    if len(fields) == 8:
+        return [
+            "time_ms",
+            "yaw_ddeg",
+            "pitch_ddeg",
+            "roll_ddeg",
+            "x_rate_ddeg_s",
+            "y_rate_ddeg_s",
+            "z_rate_ddeg_s",
+            "event",
+        ]
+
+    return ["column_" + str(index + 1) for index in range(len(fields))]
 
 
 def safe_filename(name):
@@ -155,6 +243,8 @@ def main():
     except KeyboardInterrupt:
         print("")
         print("stopped")
+
+    collector.finish()
 
     if collector.saved_files:
         print("saved", len(collector.saved_files), "file(s)")
