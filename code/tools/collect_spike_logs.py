@@ -220,11 +220,38 @@ def iter_clean_lines(text):
         yield re.sub(r"\s+", "", match.group(0))
 
 
+def iter_extracted_lines(text):
+    for match in re.finditer(
+        r"LOG_START\s*,\s*[^\s,]+"
+        r"|LOG_END\s*,\s*[^\s,]+"
+        r"|SESSION_START\s*,\s*\d+"
+        r"|SESSION_END\s*,\s*\d+"
+        r"|SESSION_DROPPED\s*,\s*\d+"
+        r"|LOG_DROPPED\s*,\s*\d+"
+        r"|time_ms\s*,\s*distance_mm\s*,\s*gyro_angle_deg"
+        r"|-?\d+\s*,\s*-?\d+\s*,\s*-?\d+",
+        text,
+    ):
+        yield re.sub(r"\s+", "", match.group(0))
+
+
 def process_text(text, collector):
+    starting_saved_count = len(collector.saved_files)
+    starting_current_name = collector.current_name
     line_count = 0
     for line in iter_clean_lines(text):
         collector.handle_line(line)
         line_count += 1
+
+    if len(collector.saved_files) == starting_saved_count and collector.current_name == starting_current_name:
+        extracted_count = 0
+        for line in iter_extracted_lines(text):
+            collector.handle_line(line)
+            extracted_count += 1
+        if extracted_count:
+            print("info: recovered", extracted_count, "compact log line(s) from raw text")
+            line_count = max(line_count, extracted_count)
+
     return line_count
 
 
