@@ -101,19 +101,17 @@ The generated CSV files contain:
 
 ```text
 time_ms
-yaw_ddeg
-pitch_ddeg
-roll_ddeg
-x_rate_ddeg_s
-y_rate_ddeg_s
-z_rate_ddeg_s
-event
+distance_mm
+gyro_angle_deg
 ```
 
-SPIKE reports angles in decidegrees.
+The hub samples as close to every 5 ms as the SPIKE runtime allows. `distance_mm` is estimated from the left and right drive motor encoders on ports B and F. `gyro_angle_deg` is converted from the hub yaw reading into degrees.
 
 ```text
-450 decidegrees = 45.0 degrees
+time_ms,distance_mm,gyro_angle_deg
+0,0,0
+5,1,0
+10,2,1
 ```
 
 ## Button Summary

@@ -155,6 +155,13 @@ def looks_like_data_row(fields):
 
 
 def default_headers_for_row(fields):
+    if len(fields) == 3:
+        return [
+            "time_ms",
+            "distance_mm",
+            "gyro_angle_deg",
+        ]
+
     if len(fields) == 8:
         return [
             "time_ms",

@@ -37,7 +37,7 @@ code/
 
 ## Hub Files
 
-`hub/main.py` is the only file you need to upload to the SPIKE hub for the recommended workflow. It records the hub gyro/motion sensor while a user moves the robot by hand.
+`hub/main.py` is the only file you need to upload to the SPIKE hub for the recommended workflow. It records the three graphing columns needed for the Pybricks-style movement analysis: time, estimated distance, and gyro angle.
 
 It includes its own copy of:
 
@@ -80,15 +80,20 @@ Light matrix codes:
 The CSV columns are:
 
 ```text
-time_ms,yaw_ddeg,pitch_ddeg,roll_ddeg,x_rate_ddeg_s,y_rate_ddeg_s,z_rate_ddeg_s,event
+time_ms,distance_mm,gyro_angle_deg
 ```
 
-SPIKE reports angles in decidegrees. Divide by 10 to get degrees.
+These columns are intended for graphing and equation fitting:
 
-Example:
+- `time_ms`: elapsed time
+- `distance_mm`: estimated robot travel distance from the wheel motor encoders
+- `gyro_angle_deg`: hub yaw angle converted from SPIKE decidegrees to degrees
+
+The default robot configuration is:
 
 ```text
-yaw_ddeg = 450 means yaw = 45.0 degrees
+left drive motor = port B
+right drive motor = port F
 ```
 
 ## Collector Usage
@@ -115,10 +120,10 @@ The collector looks for blocks like this:
 
 ```csv
 LOG_START,manual_gyro_1
-time_ms,yaw_ddeg,pitch_ddeg,roll_ddeg,x_rate_ddeg_s,y_rate_ddeg_s,z_rate_ddeg_s,event
-0,0,0,0,0,0,0,start
-50,12,0,1,240,0,10,record
-100,25,0,1,260,0,10,record
+time_ms,distance_mm,gyro_angle_deg
+0,0,0
+5,1,0
+10,2,1
 LOG_END,manual_gyro_1
 ```
 
@@ -128,7 +133,7 @@ It saves only the CSV headers and rows, without the `LOG_START` and `LOG_END` ma
 
 The hub stores logs in memory. Download the data before powering off or resetting the hub.
 
-Start with short tests and `SAMPLE_MS = 50`. The default `MAX_ROWS_PER_LOG = 1200` is about one minute of data per recording.
+Start with short tests. The current `SAMPLE_MS = 5`, so the hub tries to collect about 200 rows per second. The default `MAX_ROWS_PER_LOG = 3000` is about 15 seconds of data per recording at the target rate.
 
 ## Notes
 

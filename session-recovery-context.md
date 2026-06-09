@@ -123,7 +123,7 @@ manual-gyro-datalogging-steps.md
 
 `hub/main.py` defines `DataLog` and `LogSession` inside the same file so only one program must be uploaded to the hub. `hub/logger.py` is only a reference copy.
 
-`hub/main.py` is now the recommended manual gyro logger:
+`hub/main.py` is now the recommended graphing logger:
 
 - right button: start recording
 - right button again: stop recording
@@ -135,13 +135,10 @@ Important: the SPIKE upload flow can only upload one hub program. Upload only `c
 It records:
 
 - `time_ms`
-- `yaw_ddeg`
-- `pitch_ddeg`
-- `roll_ddeg`
-- `x_rate_ddeg_s`
-- `y_rate_ddeg_s`
-- `z_rate_ddeg_s`
-- `event`
+- `distance_mm`
+- `gyro_angle_deg`
+
+The target sampling interval is 5 ms. Actual timing may be slightly slower depending on hub runtime overhead.
 
 `tools/collect_spike_logs.py` can parse a saved output file, stdin, or a serial port if the user's SPIKE setup exposes one.
 
@@ -150,14 +147,13 @@ It records:
 ```python
 log = DataLog(
     "time_ms",
-    "yaw_ddeg",
-    "pitch_ddeg",
-    "roll_ddeg",
+    "distance_mm",
+    "gyro_angle_deg",
     name="manual_gyro",
-    max_rows=1200
+    max_rows=3000
 )
 
-log.log(time_ms, yaw_ddeg, pitch_ddeg, roll_ddeg)
+log.log(time_ms, distance_mm, gyro_angle_deg)
 log.dump()
 ```
 
@@ -165,10 +161,10 @@ log.dump()
 
 ```csv
 LOG_START,manual_gyro_1
-time_ms,yaw_ddeg,pitch_ddeg,roll_ddeg,x_rate_ddeg_s,y_rate_ddeg_s,z_rate_ddeg_s,event
-0,0,0,0,0,0,0,start
-50,12,0,1,240,0,10,record
-100,25,0,1,260,0,10,record
+time_ms,distance_mm,gyro_angle_deg
+0,0,0
+5,1,0
+10,2,1
 LOG_END,manual_gyro_1
 ```
 

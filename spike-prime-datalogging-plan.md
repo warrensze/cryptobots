@@ -62,16 +62,13 @@ Example hub-side API:
 ```python
 log = DataLog(
     "time_ms",
-    "yaw",
-    "left_deg",
-    "right_deg",
-    "left_ref",
-    "right_ref",
+    "distance_mm",
+    "gyro_angle_deg",
     name="drive_test",
-    max_rows=300
+    max_rows=3000
 )
 
-log.log(time_ms, yaw, left_deg, right_deg, left_ref, right_ref)
+log.log(time_ms, distance_mm, gyro_angle_deg)
 log.dump()
 ```
 
@@ -79,10 +76,10 @@ Example output:
 
 ```csv
 LOG_START,drive_test
-time_ms,yaw,left_deg,right_deg,left_ref,right_ref
-0,0,0,0,72,70
-25,0,14,15,72,70
-50,1,29,30,71,69
+time_ms,distance_mm,gyro_angle_deg
+0,0,0
+5,1,0
+10,2,1
 LOG_END,drive_test
 ```
 
@@ -149,34 +146,31 @@ This is still a good fit for FLL testing because the normal workflow is run, ret
 
 ## Sampling Recommendation
 
-Start with a sampling interval of 25 ms or 50 ms.
+For equation fitting and graphs similar to the original datalogging example, use a faster sampling interval of 5-9 ms.
 
-Suggested default:
+Current default:
 
 ```text
-50 ms = 20 rows per second
-10 second run = about 200 rows
+5 ms = target of about 200 rows per second
+10 second run = about 2000 rows
 ```
 
-This gives useful tuning data without using too much memory.
+Actual timing may be a little slower because the hub has to read sensors and store rows. Keep test runs short at this speed because rows are stored in hub RAM.
 
 ## Suggested Columns
 
 Start with:
 
 - `time_ms`
-- `yaw`
-- `left_deg`
-- `right_deg`
-- `left_ref`
-- `right_ref`
-- `event`
+- `distance_mm`
+- `gyro_angle_deg`
 
 Later add calculated values:
 
+- `left_deg`
+- `right_deg`
 - `left_speed`
 - `right_speed`
-- `distance_estimate`
 - `target_yaw`
 - `error`
 - `correction`

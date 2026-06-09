@@ -1,6 +1,7 @@
 import time
 
-from hub import button, light_matrix, motion_sensor
+from hub import button, light_matrix, motion_sensor, port
+import motor
 import runloop
 
 
@@ -75,10 +76,16 @@ def csv_value(value):
     return text
 
 
-# 50 ms = 20 samples/second. 1200 rows is about one minute of recording.
-SAMPLE_MS = 50
-MAX_ROWS_PER_LOG = 1200
+# 5 ms is the target sampling interval. Actual timing can be a little slower
+# depending on how fast the hub can read sensors and store rows.
+SAMPLE_MS = 5
+MAX_ROWS_PER_LOG = 3000
 MAX_SAVED_LOGS = 5
+
+# Match the team's SPIKE Prime drive configuration.
+LEFT_MOTOR = port.B
+RIGHT_MOTOR = port.F
+WHEEL_CIRCUMFERENCE_MM = 176
 
 session = LogSession(max_logs=MAX_SAVED_LOGS)
 recording_number = 1
@@ -108,30 +115,32 @@ def elapsed_ms(start_ms):
 def make_gyro_log(name):
     return DataLog(
         "time_ms",
-        "yaw_ddeg",
-        "pitch_ddeg",
-        "roll_ddeg",
-        "x_rate_ddeg_s",
-        "y_rate_ddeg_s",
-        "z_rate_ddeg_s",
-        "event",
+        "distance_mm",
+        "gyro_angle_deg",
         name=name,
         max_rows=MAX_ROWS_PER_LOG,
     )
 
 
-def log_motion_row(log, start_ms, event):
-    yaw, pitch, roll = motion_sensor.tilt_angles()
-    x_rate, y_rate, z_rate = motion_sensor.angular_velocity(False)
+def safe_motor_position(motor_port):
+    try:
+        return motor.relative_position(motor_port)
+    except Exception:
+        return 0
+
+
+def estimate_distance_mm(left_deg, right_deg):
+    average_degrees = (abs(left_deg) + abs(right_deg)) // 2
+    return (average_degrees * WHEEL_CIRCUMFERENCE_MM) // 360
+
+
+def log_motion_row(log, start_ms):
+    left_deg = safe_motor_position(LEFT_MOTOR)
+    right_deg = safe_motor_position(RIGHT_MOTOR)
     log.log(
         elapsed_ms(start_ms),
-        yaw,
-        pitch,
-        roll,
-        x_rate,
-        y_rate,
-        z_rate,
-        event,
+        estimate_distance_mm(left_deg, right_deg),
+        motion_sensor.tilt_angles()[0] // 10,
     )
 
 
@@ -143,18 +152,23 @@ async def record_motion_log(name):
         motion_sensor.reset_yaw(0)
     except Exception:
         pass
+    try:
+        motor.reset_relative_position(LEFT_MOTOR, 0)
+        motor.reset_relative_position(RIGHT_MOTOR, 0)
+    except Exception:
+        pass
 
     log = make_gyro_log(name)
     start = time.ticks_ms()
-    log_motion_row(log, start, "start")
+    log_motion_row(log, start)
 
     while True:
         if right_pressed():
-            log_motion_row(log, start, "stop")
+            log_motion_row(log, start)
             await wait_for_buttons_released()
             return log
 
-        log_motion_row(log, start, "record")
+        log_motion_row(log, start)
         await runloop.sleep_ms(SAMPLE_MS)
 
 
