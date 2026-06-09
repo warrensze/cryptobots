@@ -200,6 +200,16 @@ def unique_path(path):
         counter += 1
 
 
+def save_raw_serial_text(text, log_dir):
+    log_dir = Path(log_dir)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    path = unique_path(log_dir / ("raw_serial_" + stamp + ".txt"))
+    path.write_text(text, encoding="utf-8")
+    print("info: saved raw serial text:", path)
+    return path
+
+
 def iter_clean_lines(text):
     if "\n" in text or "\r" in text:
         for line in text.splitlines():
@@ -289,8 +299,10 @@ def read_from_serial(port, baud, collector):
 
                 if buffer and last_data_at and time.monotonic() - last_data_at >= 1:
                     text = "".join(buffer)
+                    save_raw_serial_text(text, collector.log_dir)
                     line_count = process_text(text, collector)
                     print("info: parsed", line_count, "possible log line(s) from serial data")
+                    collector.finish()
                     buffer = []
                     last_data_at = None
     except serial.SerialException as error:
