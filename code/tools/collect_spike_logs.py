@@ -15,7 +15,7 @@ import argparse
 import csv
 from datetime import datetime
 from pathlib import Path
-import rez
+import re
 import sys
 
 
@@ -213,11 +213,23 @@ def read_from_serial(port, baud, collector):
         return 2
 
     print("Listening on serial port", port, "at", baud, "baud. Press Ctrl-C to stop.")
-    with serial.Serial(port, baudrate=baud, timeout=1) as connection:
-        while True:
-            raw = connection.readline()
-            if raw:
-                collector.handle_line(raw.decode("utf-8", errors="replace"))
+    try:
+        with serial.Serial(port, baudrate=baud, timeout=1) as connection:
+            while True:
+                raw = connection.readline()
+                if raw:
+                    collector.handle_line(raw.decode("utf-8", errors="replace"))
+    except serial.SerialException as error:
+        print("error: could not read from serial port", port)
+        print("details:", error)
+        print("")
+        print("Try these checks:")
+        print("  1. Make sure the hub is plugged in, powered on, and already running main.py.")
+        print("  2. Start this collector before pressing the hub's left dump button.")
+        print("  3. Close VS Code's hub terminal/connection if it is already using the port.")
+        print("  4. Confirm the port in Windows Device Manager under Ports (COM & LPT).")
+        print("  5. If COM7 is wrong, rerun with the correct COM port, such as COM3 or COM5.")
+        return 3
 
 
 def main():
