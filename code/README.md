@@ -70,7 +70,7 @@ Light matrix codes:
 `code/logs/equation.txt`:
 
 ```text
--26.5 + 0.476x + -0.0202x^2 + 1.2E-04x^3 + 3.47E-06x^4 + -2.82E-08x^5
+6.31 + -0.147x + 0.0542x^2 + -1.15E-03x^3 + 1.11E-05x^4 + -4.02E-08x^5
 ```
 
 For each loop, the robot:
