@@ -21,6 +21,7 @@ import time
 
 
 DEFAULT_LOG_DIR = Path(__file__).resolve().parents[1] / "logs"
+SERIAL_QUIET_SECONDS = 3
 
 
 class SpikeLogCollector:
@@ -61,6 +62,11 @@ class SpikeLogCollector:
 
         if marker in ("SESSION_START", "SESSION_END", "SESSION_DROPPED", "LOG_DROPPED"):
             print("info:", line)
+            return
+
+        if marker == "HUB_LOG_COUNT":
+            count = fields[1] if len(fields) > 1 else "unknown"
+            print("info: hub saved log count:", count)
             return
 
         if marker == "NO_LOGS":
@@ -306,6 +312,7 @@ def iter_clean_lines(text):
         r"|CBLOG_ROW\s*,\s*-?\d+\s*,\s*-?\d+\s*,\s*-?\d+"
         r"|SESSION_START\s*,\s*\d+"
         r"|SESSION_END\s*,\s*\d+"
+        r"|HUB_LOG_COUNT\s*,\s*\d+"
         r"|SESSION_DROPPED\s*,\s*\d+"
         r"|LOG_DROPPED\s*,\s*\d+"
         r"|NO_LOGS\s*,\s*[^\s,]+"
@@ -324,6 +331,7 @@ def iter_extracted_lines(text):
         r"|CBLOG_ROW\s*,\s*-?\d+\s*,\s*-?\d+\s*,\s*-?\d+"
         r"|SESSION_START\s*,\s*\d+"
         r"|SESSION_END\s*,\s*\d+"
+        r"|HUB_LOG_COUNT\s*,\s*\d+"
         r"|SESSION_DROPPED\s*,\s*\d+"
         r"|LOG_DROPPED\s*,\s*\d+"
         r"|NO_LOGS\s*,\s*[^\s,]+"
@@ -395,10 +403,16 @@ def read_from_serial(port, baud, collector):
                     last_data_at = time.monotonic()
                     continue
 
-                if buffer and last_data_at and time.monotonic() - last_data_at >= 1:
-                    text = "".join(buffer)
+                text = "".join(buffer)
+                dump_complete = "SESSION_END" in text or "LOG_END" in text
+                quiet_for = time.monotonic() - last_data_at if last_data_at else 0
+
+                if buffer and (dump_complete or quiet_for >= SERIAL_QUIET_SECONDS):
                     line_count = process_text(text, collector)
                     print("info: parsed", line_count, "possible log line(s) from serial data")
+                    if line_count == 0:
+                        save_raw_serial_text(text, collector.log_dir)
+                        print("warning: no CBLOG_ROW data found in the serial dump.")
                     collector.finish()
                     buffer = []
                     last_data_at = None

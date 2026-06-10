@@ -49,7 +49,7 @@ Button controls:
 - right button: start recording
 - right button again: stop recording
 - left button: dump saved logs after the computer is connected
-- both buttons: clear saved logs
+- both buttons: clear saved logs, so avoid pressing both during normal dumping
 
 Light matrix codes:
 
@@ -67,16 +67,15 @@ Light matrix codes:
 ## Recommended Workflow
 
 1. Upload only `hub/main.py` to the SPIKE hub.
-2. Press both hub buttons once to clear old saved logs. The hub shows `0`.
-3. Disconnect the computer if you want to collect data away from it.
-4. Press the right button. The hub shows `R`.
-5. Move the robot by hand. Turn it, push it, rotate it, or test the path you care about.
-6. Press the right button again. The hub shows the number of saved logs, such as `1`.
-7. Repeat steps 4-6 if you want more recordings. Up to 5 are stored.
-8. Plug the hub back into the computer.
-9. Start the collector script.
-10. Press the left button on the hub. The hub shows `U` and dumps the saved data.
-11. CSV files appear in `code/logs/`.
+2. Disconnect the computer if you want to collect data away from it.
+3. Press the right button. The hub shows `R`.
+4. Move the robot by hand. Turn it, push it, rotate it, or test the path you care about.
+5. Press the right button again. The hub should show the number of saved logs, such as `1`.
+6. Repeat steps 3-5 if you want more recordings. Up to 5 are stored.
+7. Plug the hub back into the computer.
+8. Start the collector script.
+9. Press the left button on the hub. The hub shows `U` while dumping, then `Y` if it dumped logs.
+10. CSV files appear in `code/logs/`.
 
 The CSV columns are:
 
@@ -145,7 +144,7 @@ Import `robot_log_...csv` into Google Sheets. Ignore any older `raw_serial_...tx
 
 The hub stores logs in memory. Download the data before powering off or resetting the hub.
 
-The current `hub/main.py` also writes completed logs to a small hub file named `robot_logs.txt`. This gives the dump step a backup if the hub program restarts when reconnecting to the computer. Pressing both hub buttons clears both the RAM logs and this backup file.
+The current `hub/main.py` also writes completed logs to a small hub file named `robot_logs.txt`. This gives the dump step a backup if the hub program restarts when reconnecting to the computer. Pressing both hub buttons clears both the RAM logs and this backup file, so do not press both buttons while dumping.
 
 Start with short tests. The current `SAMPLE_MS = 5`, so the hub tries to collect about 200 rows per second. The default `MAX_ROWS_PER_LOG = 3000` is about 15 seconds of data per recording at the target rate.
 

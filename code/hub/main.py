@@ -63,7 +63,10 @@ class LogSession:
             print(line)
 
     def lines(self):
-        output = ["SESSION_START," + str(len(self.logs))]
+        output = [
+            "SESSION_START," + str(len(self.logs)),
+            "HUB_LOG_COUNT," + str(len(self.logs)),
+        ]
         if self.dropped_logs:
             output.append("SESSION_DROPPED," + str(self.dropped_logs))
         for datalog in self.logs:
@@ -156,19 +159,24 @@ def dump_persisted_logs():
     try:
         with open(LOG_FILE, "r") as file:
             found_any = False
+            found_log_row = False
             while True:
                 line = file.readline()
                 if not line:
                     break
                 found_any = True
-                print(line.strip())
-            return found_any
+                text = line.strip()
+                if text.startswith("CBLOG_ROW,"):
+                    found_log_row = True
+                print(text)
+            return found_any and found_log_row
     except Exception:
         return False
 
 
 def dump_no_logs():
     print("SESSION_START,0")
+    print("HUB_LOG_COUNT,0")
     print("NO_LOGS,record_with_right_button_before_dumping")
     print("SESSION_END,0")
 
@@ -340,21 +348,24 @@ async def main():
     await light_matrix.write("S")
 
     while True:
-        if both_pressed():
+        if left_pressed():
+            await wait_for_buttons_released()
+            await light_matrix.write("U")
+            if session.count():
+                session.dump_all()
+                await light_matrix.write("Y")
+            elif not dump_persisted_logs():
+                dump_no_logs()
+                await light_matrix.write("0")
+            else:
+                await light_matrix.write("Y")
+
+        elif both_pressed():
             session.clear()
             clear_persisted_logs()
             recording_number = 1
             await wait_for_buttons_released()
             await light_matrix.write("0")
-
-        elif left_pressed():
-            await wait_for_buttons_released()
-            await light_matrix.write("U")
-            if session.count():
-                session.dump_all()
-            elif not dump_persisted_logs():
-                dump_no_logs()
-            await show_saved_count()
 
         elif right_pressed():
             name = "manual_gyro_" + str(recording_number)
