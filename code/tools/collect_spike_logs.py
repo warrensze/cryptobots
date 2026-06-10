@@ -210,6 +210,46 @@ def save_raw_serial_text(text, log_dir):
     return path
 
 
+def extract_three_column_rows(text):
+    rows = []
+    for match in re.finditer(r"-?\d+\s*,\s*-?\d+\s*,\s*-?\d+", text):
+        row = re.sub(r"\s+", "", match.group(0)).split(",")
+        rows.append(row)
+    return rows
+
+
+def save_parsed_rows(rows, log_dir, name="parsed_serial"):
+    if not rows:
+        return []
+
+    log_dir = Path(log_dir)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    headers = ["time_ms", "distance_mm", "gyro_angle_deg"]
+
+    txt_path = unique_path(log_dir / (name + "_" + stamp + ".txt"))
+    csv_path = unique_path(log_dir / (name + "_" + stamp + ".csv"))
+
+    text_lines = [",".join(headers)]
+    text_lines.extend(",".join(row) for row in rows)
+    txt_path.write_text("\n".join(text_lines) + "\n", encoding="utf-8")
+
+    with csv_path.open("w", newline="", encoding="utf-8") as output:
+        writer = csv.writer(output)
+        writer.writerow(headers)
+        writer.writerows(rows)
+
+    print("saved parsed txt:", txt_path)
+    print("saved parsed csv:", csv_path)
+    print("preview:")
+    for line in text_lines[:6]:
+        print("  " + line)
+    if len(text_lines) > 6:
+        print("  ...")
+
+    return [txt_path, csv_path]
+
+
 def iter_clean_lines(text):
     if "\n" in text or "\r" in text:
         for line in text.splitlines():
@@ -246,6 +286,10 @@ def iter_extracted_lines(text):
 
 
 def process_text(text, collector):
+    parsed_rows = extract_three_column_rows(text)
+    if parsed_rows:
+        save_parsed_rows(parsed_rows, collector.log_dir)
+
     starting_saved_count = len(collector.saved_files)
     starting_current_name = collector.current_name
     line_count = 0
