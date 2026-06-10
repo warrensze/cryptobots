@@ -254,7 +254,7 @@ class MotorTracker:
         self.direction = direction
         self.absolute_previous = read_absolute_position(motor_port)
         self.absolute_total = 0
- nbv
+
     def read_degrees(self):
         relative = read_relative_position(self.motor_port)
         absolute = read_absolute_position(self.motor_port)
