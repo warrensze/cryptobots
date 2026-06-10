@@ -40,12 +40,13 @@ Button controls:
 - right button: start recording
 - right button again: stop recording
 - left button: dump the saved run so the collector can save a CSV
-- both buttons: show whether a saved run exists
+- both buttons: run the autonomous path from `code/logs/equation.txt`
 
 Light matrix codes:
 
 - `S`: standing by, ready to start
 - `R`: recording
+- `A`: autonomous navigation running
 - `1`: one run is saved
 - `0`: no run is saved
 - `U`: dumping data to the collector
@@ -63,7 +64,44 @@ Light matrix codes:
 9. Press the left button on the hub. The hub shows `U` and dumps the saved data.
 10. A clean CSV appears in `code/logs/`.
 
-If the collector fails, the hub also prints a plain CSV fallback between `CSV_START` and `CSV_END` in the console. Copy the lines between those markers, starting with `time,distance,gyro_angle`, and paste them into Sheets, Excel, Numbers, or a `.csv` file.
+## Autonomous Navigation
+
+`hub/main.py` includes a proportional controller that follows the polynomial in
+`code/logs/equation.txt`:
+
+```text
+-26.5 + 0.476x + -0.0202x^2 + 1.2E-04x^3 + 3.47E-06x^4 + -2.82E-08x^5
+```
+
+For each loop, the robot:
+
+1. reads drive motor distance in millimeters
+2. calculates the target heading angle from the trend line
+3. reads the current gyro heading angle
+4. calculates `error = target_angle - gyro_angle`
+5. applies proportional steering correction with `AUTO_KP`
+
+Press both hub buttons to start autonomous navigation. Press either hub button
+during the run to stop early. The hub saves an autonomous debug CSV with:
+
+```csv
+time,distance,gyro_angle,target_angle,error,correction
+```
+
+Tune these values near the top of `hub/main.py`:
+
+```python
+AUTO_TARGET_DISTANCE_MM = 100
+AUTO_BASE_SPEED = 220
+AUTO_KP = 6
+AUTO_STEERING_DIRECTION = 1
+```
+
+If the robot corrects away from the path, change `AUTO_STEERING_DIRECTION` to
+`-1`. If it wiggles too much, lower `AUTO_KP`. If it reacts too slowly, raise
+`AUTO_KP` a little.
+
+If the collector fails, the hub also prints a plain CSV fallback between `CSV_START` and `CSV_END` in the console. Copy the lines between those markers, starting with the header row, and paste them into Sheets, Excel, Numbers, or a `.csv` file.
 
 ## Robot Setup
 
