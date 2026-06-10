@@ -59,7 +59,7 @@ That means standby.
 
 Do not turn off or reset the hub before copying the data if you can avoid it. The program stores the run in memory and also writes a backup file named `robot_log.csv` on the hub.
 
-Starting a new recording replaces the previous saved run.
+Starting a new recording clears and replaces the previous saved run.
 
 ## Save The Data
 
@@ -112,17 +112,25 @@ time,distance,gyro_angle
 20,0,0
 ```
 
-## Clear Old Data
+## Keep Or Replace Data
 
-Press both hub buttons at the same time.
+The saved run stays on the hub after you dump it. Pressing the left button again
+prints the same saved run again.
+
+To replace old data, start a new recording with the right button. The old saved
+run is cleared when the new recording starts.
+
+Press both hub buttons at the same time to check whether data is currently
+saved.
 
 The hub shows:
 
 ```text
-0
+1
 ```
 
-That means the saved run and backup file were cleared.
+That means saved data is still available. If the hub shows `0`, no saved data
+was found.
 
 ## CSV Columns
 
@@ -158,5 +166,5 @@ The default `MAX_ROWS_PER_LOG = 8000` is sized for short route recordings.
 Right button = start recording
 Right button = stop recording
 Left button = print saved CSV
-Both buttons = clear saved run
+Both buttons = show whether a saved run exists
 ```

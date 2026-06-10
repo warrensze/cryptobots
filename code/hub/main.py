@@ -149,6 +149,14 @@ def clear_persisted_log():
         pass
 
 
+def persisted_log_exists():
+    try:
+        with open(LOG_FILE, "r") as file:
+            return bool(file.readline())
+    except Exception:
+        return False
+
+
 def dump_persisted_log():
     try:
         with open(LOG_FILE, "r") as file:
@@ -328,10 +336,11 @@ async def main():
 
     while True:
         if both_pressed():
-            saved_log = None
-            clear_persisted_log()
             await wait_for_buttons_released()
-            await light_matrix.write("0")
+            if saved_log is not None or persisted_log_exists():
+                await light_matrix.write("1")
+            else:
+                await light_matrix.write("0")
 
         elif left_pressed():
             await wait_for_buttons_released()
@@ -346,6 +355,8 @@ async def main():
                 await light_matrix.write("1")
 
         elif right_pressed():
+            saved_log = None
+            clear_persisted_log()
             saved_log = await record_motion_log("log_robot")
             persist_log(saved_log)
             await light_matrix.write("1")

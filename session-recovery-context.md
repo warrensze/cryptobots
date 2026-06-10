@@ -108,7 +108,7 @@ Button behavior:
 
 - right button: start/stop recording
 - left button: dump saved run to collector
-- both buttons: clear saved run and hub backup file
+- both buttons: show whether a saved run exists
 
 ## Persistence
 
@@ -120,7 +120,9 @@ robot_log.csv
 
 This backup helps if the hub program restarts when reconnecting to the computer.
 
-Starting a new recording replaces the previous saved run.
+Starting a new recording clears and replaces the previous saved run. Dumping the
+run with the left button does not clear it, so the same run can be dumped again
+if the collector misses it.
 
 The backup file includes both tagged collector rows and the plain CSV fallback
 so reconnect/restart recovery still has a copy/paste path.

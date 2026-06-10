@@ -40,7 +40,7 @@ Button controls:
 - right button: start recording
 - right button again: stop recording
 - left button: dump the saved run so the collector can save a CSV
-- both buttons: clear the saved run
+- both buttons: show whether a saved run exists
 
 Light matrix codes:
 
@@ -146,9 +146,12 @@ Use that fallback only if the collector does not save a CSV.
 
 The hub stores one run in memory. It also writes a backup file named `robot_log.csv` on the hub after recording. This helps if reconnecting to the computer restarts the program before you press the left button.
 
-Starting a new recording replaces the previous saved run.
+Starting a new recording clears and replaces the previous saved run. Dumping a
+run with the left button does not clear it, so you can dump the same run again
+if the collector misses it the first time.
 
-Pressing both hub buttons clears the saved run and the backup file.
+Pressing both hub buttons shows whether a saved run exists: `1` means saved
+data is still available, and `0` means no saved data was found.
 
 The logger uses `SAMPLE_MS = 1` to collect dense data for short 2-3 second FLL paths. Actual row spacing is limited by SPIKE sensor reads and MicroPython overhead, but this is intentionally tuned to be as close as practical to the original Pybricks `DataLog` density.
 
