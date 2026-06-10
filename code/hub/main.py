@@ -116,8 +116,8 @@ LOG_FILE = "robot_log.csv"
 AUTO_TARGET_DISTANCE_MM = 100
 AUTO_SAMPLE_MS = 10
 AUTO_BASE_SPEED = 220
-AUTO_KP = 6
-AUTO_MAX_CORRECTION = 160
+AUTO_KP = 2
+AUTO_MAX_CORRECTION = 100
 AUTO_MAX_SPEED = 400
 AUTO_STEERING_DIRECTION = 1
 
@@ -298,13 +298,16 @@ class GyroTracker:
     def __init__(self):
         self.last_ms = time.ticks_ms()
         self.integrated_mdeg = 0
+        self.use_tilt_angles = True
 
     def read_degrees(self):
-        yaw_ddeg = 0
-        try:
-            yaw_ddeg = motion_sensor.tilt_angles()[0]
-        except Exception:
-            pass
+        if self.use_tilt_angles:
+            try:
+                yaw_ddeg = motion_sensor.tilt_angles()[0]
+                self.last_ms = time.ticks_ms()
+                return int(yaw_ddeg / 10)
+            except Exception:
+                self.use_tilt_angles = False
 
         now = time.ticks_ms()
         dt_ms = time.ticks_diff(now, self.last_ms)
@@ -320,11 +323,7 @@ class GyroTracker:
         except Exception:
             pass
 
-        yaw_deg = yaw_ddeg // 10
-        integrated_deg = self.integrated_mdeg // 1000
-        if yaw_deg == 0 and integrated_deg != 0:
-            return integrated_deg
-        return yaw_deg
+        return int(self.integrated_mdeg / 1000)
 
 
 def estimate_distance_mm(left_deg, right_deg):
@@ -354,7 +353,7 @@ def log_drive_row(log, start_ms, left_tracker, right_tracker, gyro_tracker):
     )
 
 
-def target_angle_for_distance(distance_mm):
+def raw_target_angle_for_distance(distance_mm):
     x = distance_mm
     return (
         6.31
@@ -364,6 +363,13 @@ def target_angle_for_distance(distance_mm):
         + (0.0000111 * x * x * x * x)
         + (-0.0000000402 * x * x * x * x * x)
     )
+
+
+AUTO_TARGET_ANGLE_OFFSET = raw_target_angle_for_distance(0)
+
+
+def target_angle_for_distance(distance_mm):
+    return raw_target_angle_for_distance(distance_mm) - AUTO_TARGET_ANGLE_OFFSET
 
 
 def angle_error(target_angle, current_angle):

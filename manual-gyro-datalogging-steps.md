@@ -153,6 +153,16 @@ If distance is negative or stays near zero while the robot moves forward, change
 
 If `gyro_angle` stays at zero while turning, update `YAW_FACE` in `code/hub/main.py`.
 
+## Training Data Tips
+
+Before recording a path for the autonomous equation, set the robot still on the
+floor, start recording, then push it so the drive wheels roll along the path.
+Try not to twist the robot in place before it starts moving forward.
+
+A good training CSV should show `distance` steadily increasing while
+`gyro_angle` changes smoothly. If `gyro_angle` changes a lot while `distance`
+stays near `0`, the equation will not describe a clean drive path.
+
 ## Sampling Rate
 
 The logger uses a 1 ms loop delay to collect dense data for short 2-3 second routes.

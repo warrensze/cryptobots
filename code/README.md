@@ -77,7 +77,7 @@ Light matrix codes:
 For each loop, the robot:
 
 1. reads drive motor distance in millimeters
-2. calculates the target heading angle from the trend line
+2. calculates the target heading angle from the trend line, normalized so the run starts at `0` degrees after gyro reset
 3. reads the current gyro heading angle
 4. calculates `error = target_angle - gyro_angle`
 5. applies proportional steering correction with `AUTO_KP`
@@ -95,13 +95,19 @@ Tune these values near the top of `hub/main.py`:
 ```python
 AUTO_TARGET_DISTANCE_MM = 100
 AUTO_BASE_SPEED = 220
-AUTO_KP = 6
+AUTO_KP = 2
+AUTO_MAX_CORRECTION = 100
 AUTO_STEERING_DIRECTION = 1
 ```
 
 If the robot corrects away from the path, change `AUTO_STEERING_DIRECTION` to
 `-1`. If it wiggles too much, lower `AUTO_KP`. If it reacts too slowly, raise
 `AUTO_KP` a little.
+
+For a good training run, push the robot so the drive wheels roll along the path.
+Avoid rotating the robot in place while the wheel distance stays near `0`; that
+creates several gyro angles for the same distance, which a `gyro_angle =
+f(distance)` equation cannot replay cleanly.
 
 If the collector fails, the hub also prints a plain CSV fallback between `CSV_START` and `CSV_END` in the console. Copy the lines between those markers, starting with the header row, and paste them into Sheets, Excel, Numbers, or a `.csv` file.
 

@@ -89,6 +89,10 @@ recording. The code waits for a stable release after the start press so the
 same press is not reused as the stop press, but it does not ignore a later stop
 press based on elapsed time.
 
+The autonomous equation is treated as a relative heading curve. The polynomial
+value at distance `0` is subtracted so the autonomous run starts from target
+angle `0` after the gyro is reset.
+
 ## Workflow
 
 1. Upload only `code/hub/main.py` to the SPIKE hub.
@@ -142,6 +146,9 @@ so reconnect/restart recovery still has a copy/paste path.
 - `code/logs/debug.txt` from the hub was XOR-3 encoded. Decoding it showed a hub `MemoryError` in `DataLog.csv_lines()` while dumping data.
 - The hub logger now streams tagged rows and plain CSV rows directly to `print()` / file writes instead of building a second large list of all output lines.
 - The collector now detects and decodes XOR-3 hub output when saving/reading raw serial text.
+- `robot_log_20260610_134858.csv` showed `gyro_angle` changing while `distance` stayed near `0`, and a `20 -> 1` degree gyro jump. This is poor training data for `gyro_angle = f(distance)`.
+- `GyroTracker` now uses `motion_sensor.tilt_angles()` consistently instead of switching between tilt-angle yaw and integrated angular velocity mid-run.
+- Autonomous steering was softened from `AUTO_KP = 6` / `AUTO_MAX_CORRECTION = 160` to `AUTO_KP = 2` / `AUTO_MAX_CORRECTION = 100`.
 
 ## Merge Context
 
