@@ -218,6 +218,12 @@ There was no output on the console.  The only thing I saw is "Info: Parsed 10 po
 Be sure to update our context conversation in the appropriate file.  Do not create new ones, you must find the right file
 ```
 
+## Prompt 37
+
+```text
+Modify the data logger to keep the data in place until a new recording is started
+```
+
 ## Notes
 
-The current implementation focus is one-run-at-a-time manual drive datalogging on SPIKE Prime using stock LEGO MicroPython. The hub stores one run, writes a hub backup file, prints tagged collector rows, and also prints a plain CSV fallback with columns `time,distance,gyro_angle`. The collector saves CSV files into `code/logs/` and now also saves raw readable serial output when serial data arrives but no CSV is produced.
+The current implementation focus is one-run-at-a-time manual drive datalogging on SPIKE Prime using stock LEGO MicroPython. The hub stores one run, writes a hub backup file, prints tagged collector rows, and also prints a plain CSV fallback with columns `time,distance,gyro_angle`. The saved run remains available after dumping and is cleared/replaced when a new recording starts. The collector saves CSV files into `code/logs/` and now also saves raw readable serial output when serial data arrives but no CSV is produced.
