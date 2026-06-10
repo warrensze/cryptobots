@@ -49,29 +49,28 @@ class DataLog:
         else:
             self.dropped_rows += 1
 
-    def lines(self):
-        output = ["LOG_START," + csv_value(self.name)]
+    def write_tagged_lines(self, writer):
+        writer("LOG_START," + csv_value(self.name))
         if self.dropped_rows:
-            output.append("LOG_DROPPED," + str(self.dropped_rows))
-        output.append("CBLOG_HEADER," + csv_row(self.headers))
+            writer("LOG_DROPPED," + str(self.dropped_rows))
+        writer("CBLOG_HEADER," + csv_row(self.headers))
         for row in self.rows:
-            output.append("CBLOG_ROW," + csv_row(row))
-        output.append("LOG_END," + csv_value(self.name))
-        return output
+            writer("CBLOG_ROW," + csv_row(row))
+        writer("LOG_END," + csv_value(self.name))
 
-    def csv_lines(self):
-        output = ["CSV_START", csv_row(self.headers)]
+    def write_csv_lines(self, writer):
+        writer("CSV_START")
+        writer(csv_row(self.headers))
         for row in self.rows:
-            output.append(csv_row(row))
-        output.append("CSV_END")
-        return output
+            writer(csv_row(row))
+        writer("CSV_END")
 
-    def dump_lines(self):
-        return self.lines() + self.csv_lines()
+    def write_dump_lines(self, writer):
+        self.write_tagged_lines(writer)
+        self.write_csv_lines(writer)
 
     def dump(self):
-        for line in self.dump_lines():
-            print(line)
+        self.write_dump_lines(print)
 
 
 def csv_row(values):
@@ -129,15 +128,16 @@ def elapsed_ms(start_ms):
     return time.ticks_diff(time.ticks_ms(), start_ms)
 
 
-def write_lines_to_file(path, lines):
+def write_log_to_file(path, log):
     with open(path, "w") as file:
-        for line in lines:
+        def write_line(line):
             file.write(line + "\n")
+        log.write_dump_lines(write_line)
 
 
 def persist_log(log):
     try:
-        write_lines_to_file(LOG_FILE, log.dump_lines())
+        write_log_to_file(LOG_FILE, log)
     except Exception:
         pass
 

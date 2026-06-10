@@ -224,6 +224,12 @@ Be sure to update our context conversation in the appropriate file.  Do not crea
 Modify the data logger to keep the data in place until a new recording is started
 ```
 
+## Prompt 38
+
+```text
+Look at debug.txt under logs.  This is what the program created.  It seems unreadable to me.  Figure out what is happening
+```
+
 ## Notes
 
-The current implementation focus is one-run-at-a-time manual drive datalogging on SPIKE Prime using stock LEGO MicroPython. The hub stores one run, writes a hub backup file, prints tagged collector rows, and also prints a plain CSV fallback with columns `time,distance,gyro_angle`. The saved run remains available after dumping and is cleared/replaced when a new recording starts. The collector saves CSV files into `code/logs/` and now also saves raw readable serial output when serial data arrives but no CSV is produced.
+The current implementation focus is one-run-at-a-time manual drive datalogging on SPIKE Prime using stock LEGO MicroPython. The hub stores one run, writes a hub backup file, prints tagged collector rows, and also prints a plain CSV fallback with columns `time,distance,gyro_angle`. The saved run remains available after dumping and is cleared/replaced when a new recording starts. The collector saves CSV files into `code/logs/`, saves raw readable serial output when serial data arrives but no CSV is produced, and can decode XOR-3 hub output. A decoded debug file showed a hub `MemoryError` while dumping, so hub output is now streamed instead of building a large dump list in memory.

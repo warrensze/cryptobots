@@ -237,9 +237,31 @@ def clean_text_for_file(text):
             cleaned.append(" ")
 
     text = "".join(cleaned)
+    text = decode_xor3_if_needed(text)
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r" *\r?\n *", "\n", text)
     return text.strip() + "\n"
+
+
+def decode_xor3_if_needed(text):
+    markers = (
+        "Traceback",
+        "MemoryError",
+        "LOG_START",
+        "LOG_END",
+        "CBLOG_",
+        "CSV_START",
+        "time,distance,gyro_angle",
+    )
+
+    if any(marker in text for marker in markers):
+        return text
+
+    decoded = "".join(chr(ord(character) ^ 3) for character in text)
+    if any(marker in decoded for marker in markers):
+        return decoded
+
+    return text
 
 
 def save_raw_serial_text(text, log_dir):

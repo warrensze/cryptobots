@@ -133,6 +133,9 @@ so reconnect/restart recovery still has a copy/paste path.
 - `code/tools/collect_spike_logs.py` now saves readable raw serial output to `code/logs/raw_serial_readable_*.txt` whenever serial data is received.
 - If no CSV rows are saved from serial data, the collector now prints a warning and points to the raw file.
 - A temporary `MIN_RECORDING_MS` stop-button lockout was rejected and removed. The current code uses stable button-release detection instead.
+- `code/logs/debug.txt` from the hub was XOR-3 encoded. Decoding it showed a hub `MemoryError` in `DataLog.csv_lines()` while dumping data.
+- The hub logger now streams tagged rows and plain CSV rows directly to `print()` / file writes instead of building a second large list of all output lines.
+- The collector now detects and decodes XOR-3 hub output when saving/reading raw serial text.
 
 ## Merge Context
 
