@@ -96,6 +96,8 @@ SAMPLE_MS = 1
 MAX_ROWS_PER_LOG = 8000
 LOG_FILE = "robot_log.csv"
 
+BUTTON_RELEASE_CHECK_MS = 20
+BUTTON_RELEASE_STABLE_READS = 3
 GYRO_RESET_WAIT_MS = 100
 
 saved_log = None
@@ -114,8 +116,13 @@ def both_pressed():
 
 
 async def wait_for_buttons_released():
-    while left_pressed() or right_pressed():
-        await runloop.sleep_ms(20)
+    stable_reads = 0
+    while stable_reads < BUTTON_RELEASE_STABLE_READS:
+        if left_pressed() or right_pressed():
+            stable_reads = 0
+        else:
+            stable_reads += 1
+        await runloop.sleep_ms(BUTTON_RELEASE_CHECK_MS)
 
 
 def elapsed_ms(start_ms):
