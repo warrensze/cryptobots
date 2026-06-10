@@ -71,7 +71,7 @@ Light matrix codes:
 `code/logs/equation.txt`:
 
 ```text
-6.31 + -0.147x + 0.0542x^2 + -1.15E-03x^3 + 1.11E-05x^4 + -4.02E-08x^5
+0.25 + 0.579x + 0.0341x^2 + -1.33E-03x^3 + 2.34E-05x^4 + -1.51E-07x^5
 ```
 
 For each loop, the robot:
@@ -93,7 +93,7 @@ time,distance,gyro_angle,target_angle,error,correction
 Tune these values near the top of `hub/main.py`:
 
 ```python
-AUTO_TARGET_DISTANCE_MM = 100
+AUTO_TARGET_DISTANCE_MM = 62
 AUTO_BASE_SPEED = 220
 AUTO_KP = 2
 AUTO_MAX_CORRECTION = 100

@@ -111,9 +111,9 @@ LOG_FILE = "robot_log.csv"
 
 # Autonomous navigation settings.
 # These values follow code/logs/equation.txt:
-#   6.31 + -0.147x + 0.0542x^2 + -1.15E-03x^3 + 1.11E-05x^4 + -4.02E-08x^5
+#   0.25 + 0.579x + 0.0341x^2 + -1.33E-03x^3 + 2.34E-05x^4 + -1.51E-07x^5
 # x is distance in millimeters.
-AUTO_TARGET_DISTANCE_MM = 100
+AUTO_TARGET_DISTANCE_MM = 62
 AUTO_SAMPLE_MS = 10
 AUTO_BASE_SPEED = 220
 AUTO_KP = 2
@@ -356,12 +356,12 @@ def log_drive_row(log, start_ms, left_tracker, right_tracker, gyro_tracker):
 def raw_target_angle_for_distance(distance_mm):
     x = distance_mm
     return (
-        6.31
-        + (-0.147 * x)
-        + (0.0542 * x * x)
-        + (-0.00115 * x * x * x)
-        + (0.0000111 * x * x * x * x)
-        + (-0.0000000402 * x * x * x * x * x)
+        0.25
+        + (0.579 * x)
+        + (0.0341 * x * x)
+        + (-0.00133 * x * x * x)
+        + (0.0000234 * x * x * x * x)
+        + (-0.000000151 * x * x * x * x * x)
     )
 
 
