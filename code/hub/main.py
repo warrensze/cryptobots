@@ -2,6 +2,7 @@ import time
 
 from hub import button, light_matrix, motion_sensor, port
 import motor
+import os
 import runloop
 
 
@@ -22,13 +23,18 @@ class DataLog:
             self.dropped_rows += 1
 
     def dump(self):
-        print("LOG_START," + csv_value(self.name))
+        for line in self.lines():
+            print(line)
+
+    def lines(self):
+        output = ["LOG_START," + csv_value(self.name)]
         if self.dropped_rows:
-            print("LOG_DROPPED," + str(self.dropped_rows))
-        print("CBLOG_HEADER," + csv_row(self.headers))
+            output.append("LOG_DROPPED," + str(self.dropped_rows))
+        output.append("CBLOG_HEADER," + csv_row(self.headers))
         for row in self.rows:
-            print("CBLOG_ROW," + csv_row(row))
-        print("LOG_END," + csv_value(self.name))
+            output.append("CBLOG_ROW," + csv_row(row))
+        output.append("LOG_END," + csv_value(self.name))
+        return output
 
 
 class LogSession:
@@ -53,12 +59,17 @@ class LogSession:
         return len(self.logs)
 
     def dump_all(self):
-        print("SESSION_START," + str(len(self.logs)))
+        for line in self.lines():
+            print(line)
+
+    def lines(self):
+        output = ["SESSION_START," + str(len(self.logs))]
         if self.dropped_logs:
-            print("SESSION_DROPPED," + str(self.dropped_logs))
+            output.append("SESSION_DROPPED," + str(self.dropped_logs))
         for datalog in self.logs:
-            datalog.dump()
-        print("SESSION_END," + str(len(self.logs)))
+            output.extend(datalog.lines())
+        output.append("SESSION_END," + str(len(self.logs)))
+        return output
 
 
 def csv_row(values):
@@ -81,6 +92,7 @@ def csv_value(value):
 SAMPLE_MS = 5
 MAX_ROWS_PER_LOG = 3000
 MAX_SAVED_LOGS = 5
+LOG_FILE = "robot_logs.txt"
 
 # Match the team's SPIKE Prime drive configuration.
 LEFT_MOTOR = port.B
@@ -118,6 +130,47 @@ async def wait_for_buttons_released():
 
 def elapsed_ms(start_ms):
     return time.ticks_diff(time.ticks_ms(), start_ms)
+
+
+def write_lines_to_file(path, lines):
+    with open(path, "w") as file:
+        for line in lines:
+            file.write(line + "\n")
+
+
+def persist_session():
+    try:
+        write_lines_to_file(LOG_FILE, session.lines())
+    except Exception:
+        pass
+
+
+def clear_persisted_logs():
+    try:
+        os.remove(LOG_FILE)
+    except Exception:
+        pass
+
+
+def dump_persisted_logs():
+    try:
+        with open(LOG_FILE, "r") as file:
+            found_any = False
+            while True:
+                line = file.readline()
+                if not line:
+                    break
+                found_any = True
+                print(line.strip())
+            return found_any
+    except Exception:
+        return False
+
+
+def dump_no_logs():
+    print("SESSION_START,0")
+    print("NO_LOGS,record_with_right_button_before_dumping")
+    print("SESSION_END,0")
 
 
 def make_gyro_log(name):
@@ -289,6 +342,7 @@ async def main():
     while True:
         if both_pressed():
             session.clear()
+            clear_persisted_logs()
             recording_number = 1
             await wait_for_buttons_released()
             await light_matrix.write("0")
@@ -296,7 +350,10 @@ async def main():
         elif left_pressed():
             await wait_for_buttons_released()
             await light_matrix.write("U")
-            session.dump_all()
+            if session.count():
+                session.dump_all()
+            elif not dump_persisted_logs():
+                dump_no_logs()
             await show_saved_count()
 
         elif right_pressed():
@@ -304,6 +361,7 @@ async def main():
             recording_number += 1
             log = await record_motion_log(name)
             session.add(log)
+            persist_session()
             await show_saved_count()
 
         await runloop.sleep_ms(25)

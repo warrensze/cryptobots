@@ -63,6 +63,10 @@ class SpikeLogCollector:
             print("info:", line)
             return
 
+        if marker == "NO_LOGS":
+            print("warning: hub reported no saved logs. Record with the right button before dumping.")
+            return
+
         if marker == "CBLOG_HEADER":
             if self.current_name is None:
                 self.current_name = "recovered_spike_log"
@@ -304,6 +308,7 @@ def iter_clean_lines(text):
         r"|SESSION_END\s*,\s*\d+"
         r"|SESSION_DROPPED\s*,\s*\d+"
         r"|LOG_DROPPED\s*,\s*\d+"
+        r"|NO_LOGS\s*,\s*[^\s,]+"
         r"|time_ms\s*,\s*distance_mm\s*,\s*gyro_angle_deg"
         r"|-?\d+\s*,\s*-?\d+\s*,\s*-?\d+",
         text,
@@ -321,6 +326,7 @@ def iter_extracted_lines(text):
         r"|SESSION_END\s*,\s*\d+"
         r"|SESSION_DROPPED\s*,\s*\d+"
         r"|LOG_DROPPED\s*,\s*\d+"
+        r"|NO_LOGS\s*,\s*[^\s,]+"
         r"|time_ms\s*,\s*distance_mm\s*,\s*gyro_angle_deg"
         r"|-?\d+\s*,\s*-?\d+\s*,\s*-?\d+",
         text,
@@ -340,6 +346,9 @@ def process_text(text, collector):
     for line in iter_clean_lines(text):
         collector.handle_line(line)
         line_count += 1
+
+    if "NO_LOGS" in text:
+        return line_count
 
     if len(collector.saved_files) == starting_saved_count and collector.current_name == starting_current_name:
         extracted_count = 0

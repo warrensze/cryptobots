@@ -71,7 +71,7 @@ Light matrix codes:
 3. Disconnect the computer if you want to collect data away from it.
 4. Press the right button. The hub shows `R`.
 5. Move the robot by hand. Turn it, push it, rotate it, or test the path you care about.
-6. Press the right button again. The hub shows the number of saved logs.
+6. Press the right button again. The hub shows the number of saved logs, such as `1`.
 7. Repeat steps 4-6 if you want more recordings. Up to 5 are stored.
 8. Plug the hub back into the computer.
 9. Start the collector script.
@@ -145,7 +145,11 @@ Import `robot_log_...csv` into Google Sheets. Ignore any older `raw_serial_...tx
 
 The hub stores logs in memory. Download the data before powering off or resetting the hub.
 
+The current `hub/main.py` also writes completed logs to a small hub file named `robot_logs.txt`. This gives the dump step a backup if the hub program restarts when reconnecting to the computer. Pressing both hub buttons clears both the RAM logs and this backup file.
+
 Start with short tests. The current `SAMPLE_MS = 5`, so the hub tries to collect about 200 rows per second. The default `MAX_ROWS_PER_LOG = 3000` is about 15 seconds of data per recording at the target rate.
+
+If the collector says the hub has no saved logs, record again and make sure the hub shows `1` or higher after pressing the right button to stop. If it still dumps no logs, the program may not have been running from the updated `hub/main.py`.
 
 ## Notes
 
