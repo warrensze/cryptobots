@@ -1,0 +1,9 @@
+SESSION_START,1
+LOG_START,manual_gyro_1
+time_ms,distance_mm,gyro_angle_deg
+0,0,1
+0,0,1
+4,0,0
+10,0,0
+14,0,0
+20,0,0

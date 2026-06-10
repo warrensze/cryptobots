@@ -12,14 +12,6 @@ This project is a standalone git repo at:
 
 It was moved out of the original SuperPowered repo so commits and pushes happen only from this project.
 
-Initial local commit:
-
-```text
-eb21777 Initial SPIKE datalogging kit
-```
-
-A GitHub remote has not been added yet.
-
 ## Folder Layout
 
 ```text
@@ -32,71 +24,69 @@ code/
   tools/
     collect_spike_logs.py
   logs/
-    generated CSV files
+    optional generated CSV files
 ```
 
-## Hub Files
+## Hub File
 
-`hub/main.py` is the only file you need to upload to the SPIKE hub for the recommended workflow. It records the three graphing columns needed for the Pybricks-style movement analysis: time, estimated distance, and gyro angle.
+`hub/main.py` is the only file you need to upload to the SPIKE hub for the recommended workflow. It dumps tagged log rows that the collector turns into a spreadsheet-friendly CSV:
 
-It includes its own copy of:
-
-- `DataLog`: stores CSV rows in memory and dumps them later
-- `LogSession`: stores several completed `DataLog` objects until download time
+```csv
+time,distance,gyro_angle
+```
 
 Button controls:
 
 - right button: start recording
 - right button again: stop recording
-- left button: dump saved logs after the computer is connected
-- both buttons: clear saved logs, so avoid pressing both during normal dumping
+- left button: dump the saved run so the collector can save a CSV
+- both buttons: show whether a saved run exists
 
 Light matrix codes:
 
 - `S`: standing by, ready to start
 - `R`: recording
-- `0` to `5`: number of saved logs
-- `U`: dumping logs to the computer
-
-`hub/logger.py` is now only a readable reference copy of the logger design. Do not upload it separately for this workflow.
-
-`hub/manual_gyro_logger.py` is an even smaller one-shot version. It is also self-contained, starts with the right button, stops with the right button, and immediately dumps one log. Use this if you do not need to store several logs before download.
-
-`hub/drive_log_example.py` is an older motor-driven example for testing the logger with drive motors.
+- `1`: one run is saved
+- `0`: no run is saved
+- `U`: dumping data to the collector
 
 ## Recommended Workflow
 
-1. Upload only `hub/main.py` to the SPIKE hub.
-2. Disconnect the computer if you want to collect data away from it.
-3. Press the right button. The hub shows `R`.
-4. Move the robot by hand. Turn it, push it, rotate it, or test the path you care about.
-5. Press the right button again. The hub should show the number of saved logs, such as `1`.
-6. Repeat steps 3-5 if you want more recordings. Up to 5 are stored.
-7. Plug the hub back into the computer.
+1. In `hub/main.py`, check the `ROBOT CONFIGURATION` section for drive motor ports, motor direction, wheel size, and gyro face.
+2. Upload only `hub/main.py` to the SPIKE hub.
+3. Disconnect the computer if you want to collect data away from it.
+4. Press the right button. The hub shows `R`.
+5. Move or run the robot. Distance is calculated from the drive motor encoders, so the drive wheels must turn.
+6. Press the right button again. The hub shows `1`, meaning one run is saved.
+7. Plug the hub back into the computer if it was disconnected.
 8. Start the collector script.
-9. Press the left button on the hub. The hub shows `U` while dumping, then `Y` if it dumped logs.
-10. CSV files appear in `code/logs/`.
+9. Press the left button on the hub. The hub shows `U` and dumps the saved data.
+10. A clean CSV appears in `code/logs/`.
 
-The CSV columns are:
+If the collector fails, the hub also prints a plain CSV fallback between `CSV_START` and `CSV_END` in the console. Copy the lines between those markers, starting with `time,distance,gyro_angle`, and paste them into Sheets, Excel, Numbers, or a `.csv` file.
 
-```text
-time_ms,distance_mm,gyro_angle_deg
+## Robot Setup
+
+The hub code has one setup block near the top of `hub/main.py`:
+
+```python
+LEFT_DRIVE_MOTOR_PORT = port.B
+RIGHT_DRIVE_MOTOR_PORT = port.F
+LEFT_DRIVE_MOTOR_DIRECTION = 1
+RIGHT_DRIVE_MOTOR_DIRECTION = 1
+WHEEL_CIRCUMFERENCE_MM = 176
 ```
 
-These columns are intended for graphing and equation fitting:
+Use any SPIKE Prime motor ports by changing the port names to `port.A`, `port.B`, `port.C`, `port.D`, `port.E`, or `port.F`.
 
-- `time_ms`: elapsed time
-- `distance_mm`: estimated robot travel distance from the wheel motor encoders
-- `gyro_angle_deg`: hub yaw angle converted from SPIKE decidegrees to degrees
+If distance is negative or stays near zero while the robot moves forward, change one motor direction:
 
-The default robot configuration is:
-
-```text
-left drive motor = port B
-right drive motor = port F
+```python
+LEFT_DRIVE_MOTOR_DIRECTION = 1
+RIGHT_DRIVE_MOTOR_DIRECTION = -1
 ```
 
-If `distance_mm` stays at `0`, confirm that the drive motors are really plugged into ports B and F and that the wheels are actually turning while you move the robot. If `gyro_angle_deg` stays at `0`, the code now sets the yaw face to `motion_sensor.TOP`; if your hub is mounted on a different face, update `YAW_FACE` near the top of `hub/main.py`.
+If `gyro_angle` stays at `0` while turning, update `YAW_FACE` near the top of `hub/main.py`.
 
 ## Collector Usage
 
@@ -112,43 +102,60 @@ On Windows, the port may look like:
 python code/tools/collect_spike_logs.py --port COM5
 ```
 
-If you have saved hub output to a text file, parse it afterward:
+If you saved hub output to a text file, parse it afterward:
 
 ```bash
 python3 code/tools/collect_spike_logs.py --file hub-output.txt
 ```
 
-The hub transfer uses `CBLOG_HEADER` and `CBLOG_ROW` prefixes so the collector can ignore USB/protocol noise:
+If the collector says it parsed possible log lines but does not save a CSV,
+look in `code/logs/` for a `raw_serial_readable_*.txt` file. That file is the
+exact readable output received from the hub and can be parsed later with
+`--file`.
+
+## Saved CSV Format
+
+The collector saves a CSV with exactly:
 
 ```csv
-LOG_START,manual_gyro_1
-CBLOG_HEADER,time_ms,distance_mm,gyro_angle_deg
-CBLOG_ROW,0,0,0
-CBLOG_ROW,5,1,0
-CBLOG_ROW,10,2,1
-LOG_END,manual_gyro_1
+time,distance,gyro_angle
+4,0,0
+11,0,0
+20,0,0
 ```
 
-The collector saves a clean Google Sheets-friendly CSV named `robot_log_...csv` with only:
+`time` is milliseconds from the start of the recording.
+`distance` is millimeters calculated from the drive motor encoders.
+`gyro_angle` is hub yaw in degrees.
 
-```csv
-time_ms,distance_mm,gyro_angle_deg
-0,0,0
-5,1,0
-10,2,1
+The hub transfer may show `LOG_START`, `CBLOG_HEADER`, and `CBLOG_ROW` lines in the console. Those are only for reliable transfer; the collector strips them out of the saved CSV.
+
+The console also includes a human fallback:
+
+```text
+CSV_START
+time,distance,gyro_angle
+4,0,0
+11,0,0
+CSV_END
 ```
 
-Import `robot_log_...csv` into Google Sheets. Ignore any older `raw_serial_...txt`, `parsed_serial_...txt`, or `parsed_serial_...csv` files from previous collector versions.
+Use that fallback only if the collector does not save a CSV.
 
-## Important Limit
+## Important Limits
 
-The hub stores logs in memory. Download the data before powering off or resetting the hub.
+The hub stores one run in memory. It also writes a backup file named `robot_log.csv` on the hub after recording. This helps if reconnecting to the computer restarts the program before you press the left button.
 
-The current `hub/main.py` also writes completed logs to a small hub file named `robot_logs.txt`. This gives the dump step a backup if the hub program restarts when reconnecting to the computer. Pressing both hub buttons clears both the RAM logs and this backup file, so do not press both buttons while dumping.
+Starting a new recording clears and replaces the previous saved run. Dumping a
+run with the left button does not clear it, so you can dump the same run again
+if the collector misses it the first time.
 
-Start with short tests. The current `SAMPLE_MS = 5`, so the hub tries to collect about 200 rows per second. The default `MAX_ROWS_PER_LOG = 3000` is about 15 seconds of data per recording at the target rate.
+Pressing both hub buttons shows whether a saved run exists: `1` means saved
+data is still available, and `0` means no saved data was found.
 
-If the collector says the hub has no saved logs, record again and make sure the hub shows `1` or higher after pressing the right button to stop. If it still dumps no logs, the program may not have been running from the updated `hub/main.py`.
+The logger uses `SAMPLE_MS = 1` to collect dense data for short 2-3 second FLL paths. Actual row spacing is limited by SPIKE sensor reads and MicroPython overhead, but this is intentionally tuned to be as close as practical to the original Pybricks `DataLog` density.
+
+The default `MAX_ROWS_PER_LOG = 8000` is sized for short route recordings.
 
 ## Notes
 
@@ -157,4 +164,6 @@ This code targets the SPIKE 3 style MicroPython API, which uses modules such as:
 - `hub.button`
 - `hub.light_matrix`
 - `hub.motion_sensor`
+- `hub.port`
+- `motor`
 - `runloop`

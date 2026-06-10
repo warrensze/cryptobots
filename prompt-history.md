@@ -74,6 +74,162 @@ Disconnect the project from the original repo.  I don't want to accidently write
 update the docs with any latest changes or context
 ```
 
+## Prompt 13
+
+```text
+The folders have moved around a little.  There is a cryptobots folder and superpower folder.  The current scripts we made for datalogging isn't working quite right.  Review the datalogging code under superpower.  Analyze our scripts under cryptobots.  Plan out again a script to mimic the datalogging code exactly using micropython
+```
+
+## Prompt 14
+
+```text
+the datalogging we need is only time, distance and gyroangle.  You can leave off the other metrics.
+```
+
+## Prompt 15
+
+```text
+Here is an example of what the original DataLogger output.  We want the exact same format.  A nice csv that we can use
+```
+
+## Prompt 16
+
+```text
+Examine the original DataLogger code and see what units their time is in.
+```
+
+## Prompt 17
+
+```text
+Is our DataLogging tracking data at the same frequency as the original?  When we were using it before we were expecting more data points
+```
+
+## Prompt 18
+
+```text
+we need to be the same or as close to the original as possible
+```
+
+## Prompt 19
+
+```text
+we need denser.  The route is usually only 2-3 seconds long anyways.  Make it as dense as the original
+```
+
+## Prompt 20
+
+```text
+how do we get the data off of the hub?  Is it as easy as it can be?
+```
+
+## Prompt 21
+
+```text
+it will already be connected using a vs code extension
+```
+
+## Prompt 22
+
+```text
+will this code work without using a separate vs code extension?
+```
+
+## Prompt 23
+
+```text
+we are only doing 1 run at a time.  Make it cleaner so that we can just copy and paste
+```
+
+## Prompt 24
+
+```text
+The recording and datalogging will be done with the robot NOT connected to anything.  Will the scripts still work?
+```
+
+## Prompt 25
+
+```text
+I can't sync.  Help me merge
+```
+
+## Prompt 26
+
+```text
+are you still there?  What is taking so long?
+```
+
+## Prompt 27
+
+```text
+You made it less user friendly.  The previous code used to create a csv file and saved it in the logs folder.  Modify the latest script to do that so there is no need to copy and paste
+```
+
+## Prompt 28
+
+```text
+Modify it so that the output is also printed to the console in case the collector fails
+```
+
+## Prompt 29
+
+```text
+double check the code and review for any potential issues or errors
+```
+
+## Prompt 30
+
+```text
+Does the code expect certain ports to be used?  If so, then make it easily configurable
+```
+
+## Prompt 31
+
+```text
+The hub stops recording too quickly.  Is there some sort of time limit?
+```
+
+## Prompt 32
+
+```text
+that is not a good solution, do not ignore the stop button press
+```
+
+## Prompt 33
+
+```text
+is there a limit to how much space can be stored in the hub memory?
+```
+
+## Prompt 34
+
+```text
+what is the current instructions for using the data logging?
+```
+
+## Prompt 35
+
+```text
+There was no output on the console.  The only thing I saw is "Info: Parsed 10 possible log lines from serial data".  There was no csv file created.  No errors being printed.
+```
+
+## Prompt 36
+
+```text
+Be sure to update our context conversation in the appropriate file.  Do not create new ones, you must find the right file
+```
+
+## Prompt 37
+
+```text
+Modify the data logger to keep the data in place until a new recording is started
+```
+
+## Prompt 38
+
+```text
+Look at debug.txt under logs.  This is what the program created.  It seems unreadable to me.  Figure out what is happening
+```
+
 ## Notes
 
-The current implementation focus is manual gyro/motion datalogging on SPIKE Prime using stock LEGO MicroPython.
+The current implementation focus is one-run-at-a-time manual drive datalogging on SPIKE Prime using stock LEGO MicroPython. The hub stores one run, writes a hub backup file, prints tagged collector rows, and also prints a plain CSV fallback with columns `time,distance,gyro_angle`. The saved run remains available after dumping and is cleared/replaced when a new recording starts. The collector saves CSV files into `code/logs/`, saves raw readable serial output when serial data arrives but no CSV is produced, and can decode XOR-3 hub output. A decoded debug file showed a hub `MemoryError` while dumping, so hub output is now streamed instead of building a large dump list in memory.

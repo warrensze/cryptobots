@@ -73,6 +73,9 @@ class SpikeLogCollector:
             print("warning: hub reported no saved logs. Record with the right button before dumping.")
             return
 
+        if marker in ("CSV_START", "CSV_END"):
+            return
+
         if marker == "CBLOG_HEADER":
             if self.current_name is None:
                 self.current_name = "recovered_spike_log"
@@ -83,7 +86,7 @@ class SpikeLogCollector:
         if marker == "CBLOG_ROW":
             if self.current_name is None:
                 self.current_name = "recovered_spike_log"
-                self.current_rows = [["time_ms", "distance_mm", "gyro_angle_deg"]]
+                self.current_rows = [["time", "distance", "gyro_angle"]]
                 self.recovered_without_markers = True
             if looks_like_data_row(fields[1:]):
                 self.current_rows.append(fields[1:])
@@ -154,11 +157,13 @@ def is_noise_line(line):
         "error deserializing" in text
         or "[hubupload]" in text
         or "welcome to the lego hub log terminal" in text
+        or text == "csv_start"
+        or text == "csv_end"
     )
 
 
 def looks_like_header(fields):
-    return len(fields) >= 2 and fields[0] == "time_ms"
+    return len(fields) >= 2 and fields[0] in ("time", "time_ms")
 
 
 def looks_like_data_row(fields):
@@ -184,14 +189,14 @@ def looks_like_data_row(fields):
 def default_headers_for_row(fields):
     if len(fields) == 3:
         return [
-            "time_ms",
-            "distance_mm",
-            "gyro_angle_deg",
+            "time",
+            "distance",
+            "gyro_angle",
         ]
 
     if len(fields) == 8:
         return [
-            "time_ms",
+            "time",
             "yaw_ddeg",
             "pitch_ddeg",
             "roll_ddeg",
@@ -238,9 +243,31 @@ def clean_text_for_file(text):
             cleaned.append(" ")
 
     text = "".join(cleaned)
+    text = decode_xor3_if_needed(text)
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r" *\r?\n *", "\n", text)
     return text.strip() + "\n"
+
+
+def decode_xor3_if_needed(text):
+    markers = (
+        "Traceback",
+        "MemoryError",
+        "LOG_START",
+        "LOG_END",
+        "CBLOG_",
+        "CSV_START",
+        "time,distance,gyro_angle",
+    )
+
+    if any(marker in text for marker in markers):
+        return text
+
+    decoded = "".join(chr(ord(character) ^ 3) for character in text)
+    if any(marker in decoded for marker in markers):
+        return decoded
+
+    return text
 
 
 def save_raw_serial_text(text, log_dir):
@@ -262,7 +289,7 @@ def extract_three_column_rows(text):
     if rows:
         return rows
 
-    if "time_ms" not in text and "LOG_START" not in text:
+    if "time" not in text and "LOG_START" not in text:
         return rows
 
     for match in re.finditer(r"-?\d+\s*,\s*-?\d+\s*,\s*-?\d+", text):
@@ -279,7 +306,7 @@ def save_parsed_rows(rows, log_dir, name="parsed_serial"):
     log_dir = Path(log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    headers = ["time_ms", "distance_mm", "gyro_angle_deg"]
+    headers = ["time", "distance", "gyro_angle"]
 
     csv_path = unique_path(log_dir / ("robot_log_" + stamp + ".csv"))
 
@@ -308,15 +335,17 @@ def iter_clean_lines(text):
     for match in re.finditer(
         r"LOG_START\s*,\s*[^\s,]+"
         r"|LOG_END\s*,\s*[^\s,]+"
-        r"|CBLOG_HEADER\s*,\s*time_ms\s*,\s*distance_mm\s*,\s*gyro_angle_deg"
+        r"|CBLOG_HEADER\s*,\s*(?:time_ms\s*,\s*distance_mm\s*,\s*gyro_angle_deg|time\s*,\s*distance\s*,\s*gyro_angle)"
         r"|CBLOG_ROW\s*,\s*-?\d+\s*,\s*-?\d+\s*,\s*-?\d+"
+        r"|CSV_START"
+        r"|CSV_END"
         r"|SESSION_START\s*,\s*\d+"
         r"|SESSION_END\s*,\s*\d+"
         r"|HUB_LOG_COUNT\s*,\s*\d+"
         r"|SESSION_DROPPED\s*,\s*\d+"
         r"|LOG_DROPPED\s*,\s*\d+"
         r"|NO_LOGS\s*,\s*[^\s,]+"
-        r"|time_ms\s*,\s*distance_mm\s*,\s*gyro_angle_deg"
+        r"|(?:time_ms\s*,\s*distance_mm\s*,\s*gyro_angle_deg|time\s*,\s*distance\s*,\s*gyro_angle)"
         r"|-?\d+\s*,\s*-?\d+\s*,\s*-?\d+",
         text,
     ):
@@ -327,15 +356,17 @@ def iter_extracted_lines(text):
     for match in re.finditer(
         r"LOG_START\s*,\s*[^\s,]+"
         r"|LOG_END\s*,\s*[^\s,]+"
-        r"|CBLOG_HEADER\s*,\s*time_ms\s*,\s*distance_mm\s*,\s*gyro_angle_deg"
+        r"|CBLOG_HEADER\s*,\s*(?:time_ms\s*,\s*distance_mm\s*,\s*gyro_angle_deg|time\s*,\s*distance\s*,\s*gyro_angle)"
         r"|CBLOG_ROW\s*,\s*-?\d+\s*,\s*-?\d+\s*,\s*-?\d+"
+        r"|CSV_START"
+        r"|CSV_END"
         r"|SESSION_START\s*,\s*\d+"
         r"|SESSION_END\s*,\s*\d+"
         r"|HUB_LOG_COUNT\s*,\s*\d+"
         r"|SESSION_DROPPED\s*,\s*\d+"
         r"|LOG_DROPPED\s*,\s*\d+"
         r"|NO_LOGS\s*,\s*[^\s,]+"
-        r"|time_ms\s*,\s*distance_mm\s*,\s*gyro_angle_deg"
+        r"|(?:time_ms\s*,\s*distance_mm\s*,\s*gyro_angle_deg|time\s*,\s*distance\s*,\s*gyro_angle)"
         r"|-?\d+\s*,\s*-?\d+\s*,\s*-?\d+",
         text,
     ):
@@ -408,12 +439,19 @@ def read_from_serial(port, baud, collector):
                 quiet_for = time.monotonic() - last_data_at if last_data_at else 0
 
                 if buffer and (dump_complete or quiet_for >= SERIAL_QUIET_SECONDS):
-                    line_count = process_text(text, collector)
+                    saved_before = len(collector.saved_files)
+                    raw_path = save_raw_serial_text(text, collector.log_dir)
+                    clean_text = clean_text_for_file(text)
+                    line_count = process_text(clean_text, collector)
                     print("info: parsed", line_count, "possible log line(s) from serial data")
                     if line_count == 0:
                         save_raw_serial_text(text, collector.log_dir)
                         print("warning: no CBLOG_ROW data found in the serial dump.")
                     collector.finish()
+                    if len(collector.saved_files) == saved_before:
+                        print("warning: serial data was received, but no CSV rows were saved.")
+                        print("info: saved the raw hub output for troubleshooting:", raw_path)
+                        print("info: expected rows look like CBLOG_ROW,4,0,0 or plain CSV rows like 4,0,0")
                     buffer = []
                     last_data_at = None
     except serial.SerialException as error:

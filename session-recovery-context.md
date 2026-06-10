@@ -2,7 +2,7 @@
 
 ## Date
 
-2026-06-08
+2026-06-10
 
 ## Project
 
@@ -18,7 +18,7 @@ Original reference repository:
 /Users/warren/LegoLeagueAutoDrive/public.superpowered2022
 ```
 
-The original SuperPowered repository is now only historical/reference context. The active project is the standalone `cryptobots` repo.
+The original SuperPowered repository is historical/reference context only. The active project is the standalone `cryptobots` repo.
 
 Current key file:
 
@@ -26,166 +26,129 @@ Current key file:
 code/hub/main.py
 ```
 
-The user wants a LEGO SPIKE Prime datalogging workflow using stock LEGO SPIKE Prime MicroPython and Visual Studio Code, without Pybricks.
+## Goal
 
-## What Was Reviewed
+Build a stock LEGO SPIKE Prime MicroPython datalogger, without Pybricks, that mimics the original SuperPowered Pybricks `DataLog` spreadsheet output as closely as practical.
 
-The project currently has:
+The desired console/CSV output is exactly:
 
-- `src/main.py`
+```csv
+time,distance,gyro_angle
+```
+
+## Original SuperPowered Findings
+
+The EV3/Pybricks code logs with `pybricks.tools.DataLog`.
+
+Relevant files:
+
 - `src/robot.py`
-- `src/missions.py`
 - `tests/test_datalog.py`
-- other navigation tests and resources
 
-Important finding:
+Important details:
 
-The codebase is EV3/Pybricks-oriented. It imports `pybricks.*`, uses EV3 screen/buttons/lights, uses `DriveBase`, and uses Pybricks `DataLog`.
+- `StopWatch.time()` values are milliseconds.
+- `DriveBase.distance()` values are millimeters.
+- `gyro.angle()` values are degrees.
+- The original logger often logs as fast as the loop allows, so row spacing is dense.
 
-Useful existing ideas:
+## Current SPIKE Design
 
-- `src/robot.py` creates a global datalog with robot state columns.
-- `tests/test_datalog.py` contains useful experiments for turn logging, drive-straight logging, motor logging, and path logging.
-
-## Decisions So Far
-
-Do not overwrite the current EV3/Pybricks project.
-
-The SPIKE-specific implementation now lives in its own standalone repo:
-
-```text
-/Users/warren/LegoLeagueAutoDrive/cryptobots
-```
-
-It was moved out of `/Users/warren/LegoLeagueAutoDrive/public.superpowered2022` so it cannot be accidentally committed to the original repo.
-
-Local git state as of the move:
-
-```text
-branch: main
-commit: eb21777 Initial SPIKE datalogging kit
-remote: not set yet
-```
-
-The user still needs to create/provide a GitHub repository URL before pushing.
-
-## Desired Datalogging Behavior
-
-The team wants convenient data collection without watching the console.
-
-Preferred workflow:
-
-1. Upload logging program to the SPIKE Prime hub.
-2. Disconnect computer.
-3. Press a hub button to start gyro/motion logging.
-4. Move the robot manually.
-5. Press a hub button to stop logging.
-6. Store data on the hub in memory.
-7. Connect computer only at the end.
-8. Trigger a dump/download from the hub.
-9. Computer script saves CSV files automatically.
-
-Important caveat:
-
-The first design should assume RAM-based storage on the hub, not persistent file storage. If the hub powers off or resets before download, logs may be lost.
-
-## Proposed Components
-
-Hub-side:
-
-- custom `DataLog` class
-- optional `LogSession` class for multiple runs
-- clean output markers: `LOG_START,<name>` and `LOG_END,<name>`
-- CSV headers and rows
-- button-triggered download/dump
-
-Computer-side:
-
-- `cryptobots/code/tools/collect_spike_logs.py`
-- listens to hub output
-- detects log blocks
-- writes CSV files under `cryptobots/code/logs/`
-
-## Implemented Files
-
-The current implementation contains:
-
-```text
-code/README.md
-code/hub/logger.py
-code/hub/main.py
-code/hub/manual_gyro_logger.py
-code/hub/drive_log_example.py
-code/tools/collect_spike_logs.py
-code/tools/sample_hub_output.txt
-manual-gyro-datalogging-steps.md
-```
-
-`hub/main.py` defines `DataLog` and `LogSession` inside the same file so only one program must be uploaded to the hub. `hub/logger.py` is only a reference copy.
-
-`hub/main.py` is now the recommended graphing logger:
-
-- right button: start recording
-- right button again: stop recording
-- left button: dump/download saved logs after connecting the computer
-- both buttons: clear saved logs
-
-Important: the SPIKE upload flow can only upload one hub program. Upload only `code/hub/main.py` for the recommended workflow.
+The current `code/hub/main.py` is a one-file hub upload.
 
 It records:
 
-- `time_ms`
-- `distance_mm`
-- `gyro_angle_deg`
+- `time`
+- `distance`
+- `gyro_angle`
 
-The target sampling interval is 5 ms. Actual timing may be slightly slower depending on hub runtime overhead.
+It uses:
 
-`tools/collect_spike_logs.py` can parse a saved output file, stdin, or a serial port if the user's SPIKE setup exposes one.
+- `time.ticks_ms()` / `time.ticks_diff()` for milliseconds
+- drive motor encoders for estimated distance
+- hub yaw for gyro angle
+- `SAMPLE_MS = 1` for dense short-route logging
+- `MAX_ROWS_PER_LOG = 8000`
+- stable button-release detection before arming the next button action
 
-## Proposed Logger API
+The active program has a `ROBOT CONFIGURATION` section near the top. Default robot constants:
 
 ```python
-log = DataLog(
-    "time_ms",
-    "distance_mm",
-    "gyro_angle_deg",
-    name="manual_gyro",
-    max_rows=3000
-)
-
-log.log(time_ms, distance_mm, gyro_angle_deg)
-log.dump()
+LEFT_DRIVE_MOTOR_PORT = port.B
+RIGHT_DRIVE_MOTOR_PORT = port.F
+LEFT_DRIVE_MOTOR_DIRECTION = 1
+RIGHT_DRIVE_MOTOR_DIRECTION = 1
+WHEEL_CIRCUMFERENCE_MM = 176
 ```
 
-## Proposed Output Format
+Valid SPIKE Prime motor ports are `port.A` through `port.F`.
 
-```csv
-LOG_START,manual_gyro_1
-time_ms,distance_mm,gyro_angle_deg
-0,0,0
-5,1,0
-10,2,1
-LOG_END,manual_gyro_1
+There is no intentional recording time limit. The right button starts and stops
+recording. The code waits for a stable release after the start press so the
+same press is not reused as the stop press, but it does not ignore a later stop
+press based on elapsed time.
+
+## Workflow
+
+1. Upload only `code/hub/main.py` to the SPIKE hub.
+2. Disconnect the computer if desired.
+3. Press right button to start recording.
+4. Move or run the robot.
+5. Press right button to stop recording.
+6. Hub shows `1`.
+7. Reconnect to VS Code/SPIKE console.
+8. Start the collector script.
+9. Press left button.
+10. Hub dumps tagged log rows.
+11. Collector saves a clean CSV into `code/logs/`.
+12. If the collector fails, copy the plain CSV fallback printed between `CSV_START` and `CSV_END`.
+13. If serial data arrives but no CSV is saved, check `code/logs/` for a `raw_serial_readable_*.txt` troubleshooting file and parse it later with `code/tools/collect_spike_logs.py --file`.
+
+Button behavior:
+
+- right button: start/stop recording
+- left button: dump saved run to collector
+- both buttons: show whether a saved run exists
+
+## Persistence
+
+The hub stores one run in memory and also writes a backup file named:
+
+```text
+robot_log.csv
 ```
 
-## Current Documentation Added
+This backup helps if the hub program restarts when reconnecting to the computer.
 
-This folder now contains:
+Starting a new recording clears and replaces the previous saved run. Dumping the
+run with the left button does not clear it, so the same run can be dumped again
+if the collector misses it.
 
-- `spike-prime-datalogging-plan.md`
-- `session-recovery-context.md`
-- `prompt-history.md`
+The backup file includes both tagged collector rows and the plain CSV fallback
+so reconnect/restart recovery still has a copy/paste path.
 
-The implementation documentation is in:
+## Recent Debugging Context
 
-- `code/README.md`
-- `manual-gyro-datalogging-steps.md`
+- The collector previously printed `info: parsed N possible log line(s) from serial data` without explaining why no CSV was saved.
+- `code/tools/collect_spike_logs.py` now saves readable raw serial output to `code/logs/raw_serial_readable_*.txt` whenever serial data is received.
+- If no CSV rows are saved from serial data, the collector now prints a warning and points to the raw file.
+- A temporary `MIN_RECORDING_MS` stop-button lockout was rejected and removed. The current code uses stable button-release detection instead.
+- `code/logs/debug.txt` from the hub was XOR-3 encoded. Decoding it showed a hub `MemoryError` in `DataLog.csv_lines()` while dumping data.
+- The hub logger now streams tagged rows and plain CSV rows directly to `print()` / file writes instead of building a second large list of all output lines.
+- The collector now detects and decodes XOR-3 hub output when saving/reading raw serial text.
 
-## User Preferences From This Session
+## Merge Context
 
-- Use stock LEGO SPIKE Prime MicroPython.
-- Do not use Pybricks.
-- Use Visual Studio Code.
-- Keep the original EV3/Pybricks code untouched.
-- Keep `cryptobots` disconnected from the original SuperPowered repo.
-- Put implementation code under `code/`.
+The local branch had the simple one-run workflow. The remote branch had better hub persistence, collector support, and improved encoder/gyro handling. The intended merged result keeps:
+
+- one run at a time
+- collector-generated CSV files in `code/logs/`
+- tagged hub transfer lines for reliability
+- plain console CSV fallback for manual copy/paste if the collector fails
+- dense 1 ms loop delay
+- hub-file backup
+- robust motor and gyro helpers from the remote branch
+
+## Git State Note
+
+The user prefers to commit changes manually. Do not commit unless explicitly asked.

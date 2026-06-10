@@ -6,6 +6,33 @@ import os
 import runloop
 
 
+# ---------------------------------------------------------------------------
+# ROBOT CONFIGURATION
+#
+# Edit this section before uploading the program to the SPIKE hub.
+# SPIKE Prime motor/sensor ports are: port.A, port.B, port.C, port.D, port.E,
+# and port.F.
+# ---------------------------------------------------------------------------
+
+# Drive motors used to calculate the CSV "distance" column.
+LEFT_DRIVE_MOTOR_PORT = port.B
+RIGHT_DRIVE_MOTOR_PORT = port.F
+
+# Change these if one wheel counts backward when the robot is pushed forward.
+LEFT_DRIVE_MOTOR_DIRECTION = 1
+RIGHT_DRIVE_MOTOR_DIRECTION = 1
+
+# Wheel circumference in millimeters. The default is close to a 56 mm wheel.
+WHEEL_CIRCUMFERENCE_MM = 176
+
+# If gyro_angle stays at 0 while turning, change this to another face:
+# motion_sensor.FRONT, TOP, RIGHT, BOTTOM, BACK, or LEFT.
+try:
+    YAW_FACE = motion_sensor.TOP
+except AttributeError:
+    YAW_FACE = None
+
+
 class DataLog:
     """Small CSV logger built into this single uploadable hub program."""
 
@@ -22,57 +49,28 @@ class DataLog:
         else:
             self.dropped_rows += 1
 
-    def dump(self):
-        for line in self.lines():
-            print(line)
-
-    def lines(self):
-        output = ["LOG_START," + csv_value(self.name)]
+    def write_tagged_lines(self, writer):
+        writer("LOG_START," + csv_value(self.name))
         if self.dropped_rows:
-            output.append("LOG_DROPPED," + str(self.dropped_rows))
-        output.append("CBLOG_HEADER," + csv_row(self.headers))
+            writer("LOG_DROPPED," + str(self.dropped_rows))
+        writer("CBLOG_HEADER," + csv_row(self.headers))
         for row in self.rows:
-            output.append("CBLOG_ROW," + csv_row(row))
-        output.append("LOG_END," + csv_value(self.name))
-        return output
+            writer("CBLOG_ROW," + csv_row(row))
+        writer("LOG_END," + csv_value(self.name))
 
+    def write_csv_lines(self, writer):
+        writer("CSV_START")
+        writer(csv_row(self.headers))
+        for row in self.rows:
+            writer(csv_row(row))
+        writer("CSV_END")
 
-class LogSession:
-    """Hold completed logs in memory until the user downloads them."""
+    def write_dump_lines(self, writer):
+        self.write_tagged_lines(writer)
+        self.write_csv_lines(writer)
 
-    def __init__(self, max_logs=5):
-        self.max_logs = max_logs
-        self.logs = []
-        self.dropped_logs = 0
-
-    def add(self, datalog):
-        if len(self.logs) < self.max_logs:
-            self.logs.append(datalog)
-        else:
-            self.dropped_logs += 1
-
-    def clear(self):
-        self.logs = []
-        self.dropped_logs = 0
-
-    def count(self):
-        return len(self.logs)
-
-    def dump_all(self):
-        for line in self.lines():
-            print(line)
-
-    def lines(self):
-        output = [
-            "SESSION_START," + str(len(self.logs)),
-            "HUB_LOG_COUNT," + str(len(self.logs)),
-        ]
-        if self.dropped_logs:
-            output.append("SESSION_DROPPED," + str(self.dropped_logs))
-        for datalog in self.logs:
-            output.extend(datalog.lines())
-        output.append("SESSION_END," + str(len(self.logs)))
-        return output
+    def dump(self):
+        self.write_dump_lines(print)
 
 
 def csv_row(values):
@@ -90,28 +88,18 @@ def csv_value(value):
     return text
 
 
-# 5 ms is the target sampling interval. Actual timing can be a little slower
-# depending on how fast the hub can read sensors and store rows.
+# Keep sampling as dense as practical for short 2-3 second FLL paths.
+# The sensor reads and row storage add overhead, so the actual row spacing will
+# usually be slower than 1 ms, but this keeps us close to the original DataLog.
 SAMPLE_MS = 5
-MAX_ROWS_PER_LOG = 3000
-MAX_SAVED_LOGS = 5
-LOG_FILE = "robot_logs.txt"
+MAX_ROWS_PER_LOG = 8000
+LOG_FILE = "robot_log.csv"
 
-# Match the team's SPIKE Prime drive configuration.
-LEFT_MOTOR = port.B
-RIGHT_MOTOR = port.F
-WHEEL_CIRCUMFERENCE_MM = 176
+BUTTON_RELEASE_CHECK_MS = 20
+BUTTON_RELEASE_STABLE_READS = 3
 GYRO_RESET_WAIT_MS = 100
 
-# If gyro angle stays at 0 while turning, change this to another face:
-# motion_sensor.FRONT, TOP, RIGHT, BOTTOM, BACK, or LEFT.
-try:
-    YAW_FACE = motion_sensor.TOP
-except AttributeError:
-    YAW_FACE = None
-
-session = LogSession(max_logs=MAX_SAVED_LOGS)
-recording_number = 1
+saved_log = None
 
 
 def left_pressed():
@@ -127,35 +115,49 @@ def both_pressed():
 
 
 async def wait_for_buttons_released():
-    while left_pressed() or right_pressed():
-        await runloop.sleep_ms(20)
+    stable_reads = 0
+    while stable_reads < BUTTON_RELEASE_STABLE_READS:
+        if left_pressed() or right_pressed():
+            stable_reads = 0
+        else:
+            stable_reads += 1
+        await runloop.sleep_ms(BUTTON_RELEASE_CHECK_MS)
 
 
 def elapsed_ms(start_ms):
     return time.ticks_diff(time.ticks_ms(), start_ms)
 
 
-def write_lines_to_file(path, lines):
+def write_log_to_file(path, log):
     with open(path, "w") as file:
-        for line in lines:
+        def write_line(line):
             file.write(line + "\n")
+        log.write_dump_lines(write_line)
 
 
-def persist_session():
+def persist_log(log):
     try:
-        write_lines_to_file(LOG_FILE, session.lines())
+        write_log_to_file(LOG_FILE, log)
     except Exception:
         pass
 
 
-def clear_persisted_logs():
+def clear_persisted_log():
     try:
         os.remove(LOG_FILE)
     except Exception:
         pass
 
 
-def dump_persisted_logs():
+def persisted_log_exists():
+    try:
+        with open(LOG_FILE, "r") as file:
+            return bool(file.readline())
+    except Exception:
+        return False
+
+
+def dump_persisted_log():
     try:
         with open(LOG_FILE, "r") as file:
             found_any = False
@@ -174,18 +176,11 @@ def dump_persisted_logs():
         return False
 
 
-def dump_no_logs():
-    print("SESSION_START,0")
-    print("HUB_LOG_COUNT,0")
-    print("NO_LOGS,record_with_right_button_before_dumping")
-    print("SESSION_END,0")
-
-
-def make_gyro_log(name):
+def make_drive_log(name):
     return DataLog(
-        "time_ms",
-        "distance_mm",
-        "gyro_angle_deg",
+        "time",
+        "distance",
+        "gyro_angle",
         name=name,
         max_rows=MAX_ROWS_PER_LOG,
     )
@@ -229,8 +224,9 @@ def unwrap_delta(current, previous):
 
 
 class MotorTracker:
-    def __init__(self, motor_port):
+    def __init__(self, motor_port, direction):
         self.motor_port = motor_port
+        self.direction = direction
         self.absolute_previous = read_absolute_position(motor_port)
         self.absolute_total = 0
 
@@ -245,12 +241,12 @@ class MotorTracker:
             self.absolute_previous = absolute
 
         if relative is None:
-            return self.absolute_total
+            return self.absolute_total * self.direction
 
         if relative == 0 and self.absolute_total != 0:
-            return self.absolute_total
+            return self.absolute_total * self.direction
 
-        return relative
+        return relative * self.direction
 
 
 class GyroTracker:
@@ -287,11 +283,11 @@ class GyroTracker:
 
 
 def estimate_distance_mm(left_deg, right_deg):
-    average_degrees = (abs(left_deg) + abs(right_deg)) // 2
+    average_degrees = (left_deg + right_deg) // 2
     return (average_degrees * WHEEL_CIRCUMFERENCE_MM) // 360
 
 
-def log_motion_row(log, start_ms, left_tracker, right_tracker, gyro_tracker):
+def log_drive_row(log, start_ms, left_tracker, right_tracker, gyro_tracker):
     left_deg = left_tracker.read_degrees()
     right_deg = right_tracker.read_degrees()
     log.log(
@@ -301,10 +297,7 @@ def log_motion_row(log, start_ms, left_tracker, right_tracker, gyro_tracker):
     )
 
 
-async def record_motion_log(name):
-    await wait_for_buttons_released()
-    await light_matrix.write("R")
-
+async def reset_sensors():
     configure_motion_sensor()
     try:
         motion_sensor.reset_yaw(0)
@@ -312,68 +305,65 @@ async def record_motion_log(name):
         pass
     await runloop.sleep_ms(GYRO_RESET_WAIT_MS)
     try:
-        motor.reset_relative_position(LEFT_MOTOR, 0)
-        motor.reset_relative_position(RIGHT_MOTOR, 0)
+        motor.reset_relative_position(LEFT_DRIVE_MOTOR_PORT, 0)
+        motor.reset_relative_position(RIGHT_DRIVE_MOTOR_PORT, 0)
     except Exception:
         pass
 
-    log = make_gyro_log(name)
-    left_tracker = MotorTracker(LEFT_MOTOR)
-    right_tracker = MotorTracker(RIGHT_MOTOR)
+
+async def record_motion_log(name):
+    await wait_for_buttons_released()
+    await light_matrix.write("R")
+
+    await reset_sensors()
+    log = make_drive_log(name)
+    left_tracker = MotorTracker(LEFT_DRIVE_MOTOR_PORT, LEFT_DRIVE_MOTOR_DIRECTION)
+    right_tracker = MotorTracker(RIGHT_DRIVE_MOTOR_PORT, RIGHT_DRIVE_MOTOR_DIRECTION)
     gyro_tracker = GyroTracker()
     start = time.ticks_ms()
-    log_motion_row(log, start, left_tracker, right_tracker, gyro_tracker)
+    log_drive_row(log, start, left_tracker, right_tracker, gyro_tracker)
 
     while True:
         if right_pressed():
-            log_motion_row(log, start, left_tracker, right_tracker, gyro_tracker)
+            log_drive_row(log, start, left_tracker, right_tracker, gyro_tracker)
             await wait_for_buttons_released()
             return log
 
-        log_motion_row(log, start, left_tracker, right_tracker, gyro_tracker)
+        log_drive_row(log, start, left_tracker, right_tracker, gyro_tracker)
         await runloop.sleep_ms(SAMPLE_MS)
 
 
-async def show_saved_count():
-    count = session.count()
-    if count < 10:
-        await light_matrix.write(str(count))
-    else:
-        await light_matrix.write("9")
-
-
 async def main():
-    global recording_number
+    global saved_log
 
     await light_matrix.write("S")
 
     while True:
-        if left_pressed():
+        if both_pressed():
             await wait_for_buttons_released()
-            await light_matrix.write("U")
-            if session.count():
-                session.dump_all()
-                await light_matrix.write("Y")
-            elif not dump_persisted_logs():
-                dump_no_logs()
-                await light_matrix.write("0")
+            if saved_log is not None or persisted_log_exists():
+                await light_matrix.write("1")
             else:
-                await light_matrix.write("Y")
+                await light_matrix.write("0")
 
-        elif both_pressed():
-            session.clear()
-            clear_persisted_logs()
-            recording_number = 1
+        elif left_pressed():
             await wait_for_buttons_released()
-            await light_matrix.write("0")
+            if saved_log is None:
+                if dump_persisted_log():
+                    await light_matrix.write("1")
+                else:
+                    await light_matrix.write("0")
+            else:
+                await light_matrix.write("U")
+                saved_log.dump()
+                await light_matrix.write("1")
 
         elif right_pressed():
-            name = "manual_gyro_" + str(recording_number)
-            recording_number += 1
-            log = await record_motion_log(name)
-            session.add(log)
-            persist_session()
-            await show_saved_count()
+            saved_log = None
+            clear_persisted_log()
+            saved_log = await record_motion_log("log_robot")
+            persist_log(saved_log)
+            await light_matrix.write("1")
 
         await runloop.sleep_ms(25)
 
