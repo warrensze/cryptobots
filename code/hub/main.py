@@ -6,6 +6,33 @@ import os
 import runloop
 
 
+# ---------------------------------------------------------------------------
+# ROBOT CONFIGURATION
+#
+# Edit this section before uploading the program to the SPIKE hub.
+# SPIKE Prime motor/sensor ports are: port.A, port.B, port.C, port.D, port.E,
+# and port.F.
+# ---------------------------------------------------------------------------
+
+# Drive motors used to calculate the CSV "distance" column.
+LEFT_DRIVE_MOTOR_PORT = port.B
+RIGHT_DRIVE_MOTOR_PORT = port.F
+
+# Change these if one wheel counts backward when the robot is pushed forward.
+LEFT_DRIVE_MOTOR_DIRECTION = 1
+RIGHT_DRIVE_MOTOR_DIRECTION = 1
+
+# Wheel circumference in millimeters. The default is close to a 56 mm wheel.
+WHEEL_CIRCUMFERENCE_MM = 176
+
+# If gyro_angle stays at 0 while turning, change this to another face:
+# motion_sensor.FRONT, TOP, RIGHT, BOTTOM, BACK, or LEFT.
+try:
+    YAW_FACE = motion_sensor.TOP
+except AttributeError:
+    YAW_FACE = None
+
+
 class DataLog:
     """Small CSV logger built into this single uploadable hub program."""
 
@@ -32,14 +59,19 @@ class DataLog:
         output.append("LOG_END," + csv_value(self.name))
         return output
 
-    def dump(self):
-        for line in self.lines():
-            print(line)
-        print("CSV_START")
-        print(csv_row(self.headers))
+    def csv_lines(self):
+        output = ["CSV_START", csv_row(self.headers)]
         for row in self.rows:
-            print(csv_row(row))
-        print("CSV_END")
+            output.append(csv_row(row))
+        output.append("CSV_END")
+        return output
+
+    def dump_lines(self):
+        return self.lines() + self.csv_lines()
+
+    def dump(self):
+        for line in self.dump_lines():
+            print(line)
 
 
 def csv_row(values):
@@ -64,23 +96,7 @@ SAMPLE_MS = 1
 MAX_ROWS_PER_LOG = 8000
 LOG_FILE = "robot_log.csv"
 
-# Match the team's SPIKE Prime drive configuration.
-LEFT_MOTOR = port.B
-RIGHT_MOTOR = port.F
-WHEEL_CIRCUMFERENCE_MM = 176
-
-# Change these if one wheel counts backward when the robot is pushed forward.
-LEFT_MOTOR_DIRECTION = 1
-RIGHT_MOTOR_DIRECTION = 1
-
 GYRO_RESET_WAIT_MS = 100
-
-# If gyro angle stays at 0 while turning, change this to another face:
-# motion_sensor.FRONT, TOP, RIGHT, BOTTOM, BACK, or LEFT.
-try:
-    YAW_FACE = motion_sensor.TOP
-except AttributeError:
-    YAW_FACE = None
 
 saved_log = None
 
@@ -114,7 +130,7 @@ def write_lines_to_file(path, lines):
 
 def persist_log(log):
     try:
-        write_lines_to_file(LOG_FILE, log.lines())
+        write_lines_to_file(LOG_FILE, log.dump_lines())
     except Exception:
         pass
 
@@ -270,8 +286,8 @@ async def reset_sensors():
         pass
     await runloop.sleep_ms(GYRO_RESET_WAIT_MS)
     try:
-        motor.reset_relative_position(LEFT_MOTOR, 0)
-        motor.reset_relative_position(RIGHT_MOTOR, 0)
+        motor.reset_relative_position(LEFT_DRIVE_MOTOR_PORT, 0)
+        motor.reset_relative_position(RIGHT_DRIVE_MOTOR_PORT, 0)
     except Exception:
         pass
 
@@ -282,8 +298,8 @@ async def record_motion_log(name):
 
     await reset_sensors()
     log = make_drive_log(name)
-    left_tracker = MotorTracker(LEFT_MOTOR, LEFT_MOTOR_DIRECTION)
-    right_tracker = MotorTracker(RIGHT_MOTOR, RIGHT_MOTOR_DIRECTION)
+    left_tracker = MotorTracker(LEFT_DRIVE_MOTOR_PORT, LEFT_DRIVE_MOTOR_DIRECTION)
+    right_tracker = MotorTracker(RIGHT_DRIVE_MOTOR_PORT, RIGHT_DRIVE_MOTOR_DIRECTION)
     gyro_tracker = GyroTracker()
     start = time.ticks_ms()
     log_drive_row(log, start, left_tracker, right_tracker, gyro_tracker)

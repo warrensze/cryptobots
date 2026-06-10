@@ -25,13 +25,17 @@ It contains the logger code inside the same file.
 
 1. Open the standalone `cryptobots` folder in VS Code.
 2. Open `code/hub/main.py`.
-3. Check these constants near the top of the file:
+3. Check the `ROBOT CONFIGURATION` section near the top of the file:
 
 ```python
-LEFT_MOTOR = port.B
-RIGHT_MOTOR = port.F
+LEFT_DRIVE_MOTOR_PORT = port.B
+RIGHT_DRIVE_MOTOR_PORT = port.F
+LEFT_DRIVE_MOTOR_DIRECTION = 1
+RIGHT_DRIVE_MOTOR_DIRECTION = 1
 WHEEL_CIRCUMFERENCE_MM = 176
 ```
+
+Use the real drive motor ports on your robot. Valid SPIKE Prime ports are `port.A`, `port.B`, `port.C`, `port.D`, `port.E`, and `port.F`.
 
 4. Upload `code/hub/main.py` to the hub as the program to run.
 5. Start the program.
@@ -131,7 +135,7 @@ gyro_angle
 
 `gyro_angle` is hub yaw in degrees.
 
-If distance is negative or stays near zero while the robot moves forward, change `LEFT_MOTOR_DIRECTION` or `RIGHT_MOTOR_DIRECTION` in `code/hub/main.py`.
+If distance is negative or stays near zero while the robot moves forward, change `LEFT_DRIVE_MOTOR_DIRECTION` or `RIGHT_DRIVE_MOTOR_DIRECTION` in `code/hub/main.py`.
 
 If `gyro_angle` stays at zero while turning, update `YAW_FACE` in `code/hub/main.py`.
 

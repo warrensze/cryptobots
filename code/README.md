@@ -52,7 +52,7 @@ Light matrix codes:
 
 ## Recommended Workflow
 
-1. In `hub/main.py`, check the drive motor ports and wheel size.
+1. In `hub/main.py`, check the `ROBOT CONFIGURATION` section for drive motor ports, motor direction, wheel size, and gyro face.
 2. Upload only `hub/main.py` to the SPIKE hub.
 3. Disconnect the computer if you want to collect data away from it.
 4. Press the right button. The hub shows `R`.
@@ -67,19 +67,23 @@ If the collector fails, the hub also prints a plain CSV fallback between `CSV_ST
 
 ## Robot Setup
 
-The default hub code assumes the current team robot setup:
+The hub code has one setup block near the top of `hub/main.py`:
 
 ```python
-LEFT_MOTOR = port.B
-RIGHT_MOTOR = port.F
+LEFT_DRIVE_MOTOR_PORT = port.B
+RIGHT_DRIVE_MOTOR_PORT = port.F
+LEFT_DRIVE_MOTOR_DIRECTION = 1
+RIGHT_DRIVE_MOTOR_DIRECTION = 1
 WHEEL_CIRCUMFERENCE_MM = 176
 ```
+
+Use any SPIKE Prime motor ports by changing the port names to `port.A`, `port.B`, `port.C`, `port.D`, `port.E`, or `port.F`.
 
 If distance is negative or stays near zero while the robot moves forward, change one motor direction:
 
 ```python
-LEFT_MOTOR_DIRECTION = 1
-RIGHT_MOTOR_DIRECTION = -1
+LEFT_DRIVE_MOTOR_DIRECTION = 1
+RIGHT_DRIVE_MOTOR_DIRECTION = -1
 ```
 
 If `gyro_angle` stays at `0` while turning, update `YAW_FACE` near the top of `hub/main.py`.

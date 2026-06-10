@@ -70,13 +70,17 @@ It uses:
 - `SAMPLE_MS = 1` for dense short-route logging
 - `MAX_ROWS_PER_LOG = 8000`
 
-Default robot constants:
+The active program has a `ROBOT CONFIGURATION` section near the top. Default robot constants:
 
 ```python
-LEFT_MOTOR = port.B
-RIGHT_MOTOR = port.F
+LEFT_DRIVE_MOTOR_PORT = port.B
+RIGHT_DRIVE_MOTOR_PORT = port.F
+LEFT_DRIVE_MOTOR_DIRECTION = 1
+RIGHT_DRIVE_MOTOR_DIRECTION = 1
 WHEEL_CIRCUMFERENCE_MM = 176
 ```
+
+Valid SPIKE Prime motor ports are `port.A` through `port.F`.
 
 ## Workflow
 
