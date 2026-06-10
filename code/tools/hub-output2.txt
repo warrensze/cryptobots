@@ -1,0 +1,8 @@
+
+SESSION_START,1
+LOG_START,manual_gyro_1
+time_ms,yaw_ddeg,pitch_ddeg,roll_ddeg,x_rate_ddeg_s,y_rate_ddeg_s,z_rate_ddeg_s,event
+0,0,-2,3,-5,1,0,start
+0,0,-2,3,-5,1,0,record
+49,0,-1,7,-6,2,0,record
+99,0,0,6,-4,1,0,record

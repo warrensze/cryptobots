@@ -92,7 +92,7 @@ def csv_value(value):
 # Keep sampling as dense as practical for short 2-3 second FLL paths.
 # The sensor reads and row storage add overhead, so the actual row spacing will
 # usually be slower than 1 ms, but this keeps us close to the original DataLog.
-SAMPLE_MS = 1
+SAMPLE_MS = 5
 MAX_ROWS_PER_LOG = 8000
 LOG_FILE = "robot_log.csv"
 
