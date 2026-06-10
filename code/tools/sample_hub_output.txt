@@ -1,10 +1,10 @@
 SESSION_START,1
 LOG_START,manual_gyro_1
-time_ms,distance_mm,gyro_angle_deg
-0,0,0
-5,1,0
-10,2,1
-15,4,1
-20,5,2
+CBLOG_HEADER,time_ms,distance_mm,gyro_angle_deg
+CBLOG_ROW,0,0,0
+CBLOG_ROW,5,1,0
+CBLOG_ROW,10,2,1
+CBLOG_ROW,15,4,1
+CBLOG_ROW,20,5,2
 LOG_END,manual_gyro_1
 SESSION_END,1

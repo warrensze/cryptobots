@@ -25,9 +25,9 @@ class DataLog:
         print("LOG_START," + csv_value(self.name))
         if self.dropped_rows:
             print("LOG_DROPPED," + str(self.dropped_rows))
-        print(csv_row(self.headers))
+        print("CBLOG_HEADER," + csv_row(self.headers))
         for row in self.rows:
-            print(csv_row(row))
+            print("CBLOG_ROW," + csv_row(row))
         print("LOG_END," + csv_value(self.name))
 
 

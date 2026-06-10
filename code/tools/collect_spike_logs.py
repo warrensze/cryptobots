@@ -63,6 +63,22 @@ class SpikeLogCollector:
             print("info:", line)
             return
 
+        if marker == "CBLOG_HEADER":
+            if self.current_name is None:
+                self.current_name = "recovered_spike_log"
+                self.recovered_without_markers = True
+            self.current_rows.append(fields[1:])
+            return
+
+        if marker == "CBLOG_ROW":
+            if self.current_name is None:
+                self.current_name = "recovered_spike_log"
+                self.current_rows = [["time_ms", "distance_mm", "gyro_angle_deg"]]
+                self.recovered_without_markers = True
+            if looks_like_data_row(fields[1:]):
+                self.current_rows.append(fields[1:])
+            return
+
         if looks_like_header(fields):
             if self.current_name is None:
                 self.current_name = "recovered_spike_log"
@@ -229,9 +245,20 @@ def save_raw_serial_text(text, log_dir):
 
 def extract_three_column_rows(text):
     rows = []
+    for match in re.finditer(r"CBLOG_ROW\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)", text):
+        row = [match.group(1), match.group(2), match.group(3)]
+        rows.append(row)
+
+    if rows:
+        return rows
+
+    if "time_ms" not in text and "LOG_START" not in text:
+        return rows
+
     for match in re.finditer(r"-?\d+\s*,\s*-?\d+\s*,\s*-?\d+", text):
         row = re.sub(r"\s+", "", match.group(0)).split(",")
         rows.append(row)
+
     return rows
 
 
@@ -276,6 +303,8 @@ def iter_clean_lines(text):
     for match in re.finditer(
         r"LOG_START\s*,\s*[^\s,]+"
         r"|LOG_END\s*,\s*[^\s,]+"
+        r"|CBLOG_HEADER\s*,\s*time_ms\s*,\s*distance_mm\s*,\s*gyro_angle_deg"
+        r"|CBLOG_ROW\s*,\s*-?\d+\s*,\s*-?\d+\s*,\s*-?\d+"
         r"|SESSION_START\s*,\s*\d+"
         r"|SESSION_END\s*,\s*\d+"
         r"|SESSION_DROPPED\s*,\s*\d+"
@@ -291,6 +320,8 @@ def iter_extracted_lines(text):
     for match in re.finditer(
         r"LOG_START\s*,\s*[^\s,]+"
         r"|LOG_END\s*,\s*[^\s,]+"
+        r"|CBLOG_HEADER\s*,\s*time_ms\s*,\s*distance_mm\s*,\s*gyro_angle_deg"
+        r"|CBLOG_ROW\s*,\s*-?\d+\s*,\s*-?\d+\s*,\s*-?\d+"
         r"|SESSION_START\s*,\s*\d+"
         r"|SESSION_END\s*,\s*\d+"
         r"|SESSION_DROPPED\s*,\s*\d+"
@@ -305,7 +336,8 @@ def iter_extracted_lines(text):
 def process_text(text, collector):
     parsed_rows = extract_three_column_rows(text)
     if parsed_rows:
-        save_parsed_rows(parsed_rows, collector.log_dir)
+        collector.saved_files.extend(save_parsed_rows(parsed_rows, collector.log_dir))
+        return len(parsed_rows)
 
     starting_saved_count = len(collector.saved_files)
     starting_current_name = collector.current_name

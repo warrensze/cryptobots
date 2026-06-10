@@ -116,18 +116,25 @@ If you have saved hub output to a text file, parse it afterward:
 python3 code/tools/collect_spike_logs.py --file hub-output.txt
 ```
 
-The collector looks for blocks like this:
+The hub transfer uses `CBLOG_HEADER` and `CBLOG_ROW` prefixes so the collector can ignore USB/protocol noise:
 
 ```csv
 LOG_START,manual_gyro_1
+CBLOG_HEADER,time_ms,distance_mm,gyro_angle_deg
+CBLOG_ROW,0,0,0
+CBLOG_ROW,5,1,0
+CBLOG_ROW,10,2,1
+LOG_END,manual_gyro_1
+```
+
+The collector saves clean files named `parsed_serial_...txt` and `parsed_serial_...csv` with only:
+
+```csv
 time_ms,distance_mm,gyro_angle_deg
 0,0,0
 5,1,0
 10,2,1
-LOG_END,manual_gyro_1
 ```
-
-It saves only the CSV headers and rows, without the `LOG_START` and `LOG_END` marker lines.
 
 ## Important Limit
 
