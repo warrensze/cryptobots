@@ -2,7 +2,6 @@ import time
 
 from hub import button, light_matrix, motion_sensor, port
 import motor
-import motor_pair
 import os
 import runloop
 
@@ -22,9 +21,6 @@ RIGHT_DRIVE_MOTOR_PORT = port.F
 # Change these if one wheel counts backward when the robot is pushed forward.
 LEFT_DRIVE_MOTOR_DIRECTION = 1
 RIGHT_DRIVE_MOTOR_DIRECTION = 1
-
-# Motor pair used by autonomous navigation.
-DRIVE_PAIR = motor_pair.PAIR_1
 
 # Wheel circumference in millimeters. The default is close to a 56 mm wheel.
 WHEEL_CIRCUMFERENCE_MM = 176
@@ -99,18 +95,6 @@ SAMPLE_MS = 5
 MAX_ROWS_PER_LOG = 8000
 LOG_FILE = "robot_log.csv"
 
-# Autonomous navigation settings.
-# These values follow code/logs/equation.txt:
-#   -26.5 + 0.476x + -0.0202x^2 + 1.2E-04x^3 + 3.47E-06x^4 + -2.82E-08x^5
-# x is distance in millimeters.
-AUTO_TARGET_DISTANCE_MM = 100
-AUTO_SAMPLE_MS = 10
-AUTO_BASE_SPEED = 220
-AUTO_KP = 6
-AUTO_MAX_CORRECTION = 160
-AUTO_MAX_SPEED = 400
-AUTO_STEERING_DIRECTION = 1
-
 BUTTON_RELEASE_CHECK_MS = 20
 BUTTON_RELEASE_STABLE_READS = 3
 GYRO_RESET_WAIT_MS = 100
@@ -177,17 +161,13 @@ def dump_persisted_log():
     try:
         with open(LOG_FILE, "r") as file:
             found_any = False
-            found_log_row = False
             while True:
                 line = file.readline()
                 if not line:
                     break
                 found_any = True
-                text = line.strip()
-                if text.startswith("CBLOG_ROW,"):
-                    found_log_row = True
-                print(text)
-            return found_any and found_log_row
+                print(line.strip())
+            return found_any
     except Exception:
         return False
 
@@ -197,19 +177,6 @@ def make_drive_log(name):
         "time",
         "distance",
         "gyro_angle",
-        name=name,
-        max_rows=MAX_ROWS_PER_LOG,
-    )
-
-
-def make_navigation_log(name):
-    return DataLog(
-        "time",
-        "distance",
-        "gyro_angle",
-        "target_angle",
-        "error",
-        "correction",
         name=name,
         max_rows=MAX_ROWS_PER_LOG,
     )
@@ -258,7 +225,7 @@ class MotorTracker:
         self.direction = direction
         self.absolute_previous = read_absolute_position(motor_port)
         self.absolute_total = 0
-
+ nbv
     def read_degrees(self):
         relative = read_relative_position(self.motor_port)
         absolute = read_absolute_position(self.motor_port)
@@ -316,126 +283,13 @@ def estimate_distance_mm(left_deg, right_deg):
     return (average_degrees * WHEEL_CIRCUMFERENCE_MM) // 360
 
 
-def read_drive_state(left_tracker, right_tracker, gyro_tracker):
+def log_drive_row(log, start_ms, left_tracker, right_tracker, gyro_tracker):
     left_deg = left_tracker.read_degrees()
     right_deg = right_tracker.read_degrees()
-    return (
+    log.log(
+        elapsed_ms(start_ms),
         estimate_distance_mm(left_deg, right_deg),
         gyro_tracker.read_degrees(),
-    )
-
-
-def log_drive_row(log, start_ms, left_tracker, right_tracker, gyro_tracker):
-    distance, gyro_angle = read_drive_state(
-        left_tracker,
-        right_tracker,
-        gyro_tracker,
-    )
-    log.log(
-        elapsed_ms(start_ms),
-        distance,
-        gyro_angle,
-    )
-
-
-def target_angle_for_distance(distance_mm):
-    x = distance_mm
-    return (
-        -26.5
-        + (0.476 * x)
-        + (-0.0202 * x * x)
-        + (0.00012 * x * x * x)
-        + (0.00000347 * x * x * x * x)
-        + (-0.0000000282 * x * x * x * x * x)
-    )
-
-
-def angle_error(target_angle, current_angle):
-    error = target_angle - current_angle
-    while error > 180:
-        error -= 360
-    while error < -180:
-        error += 360
-    return error
-
-
-def limit(value, low, high):
-    if value < low:
-        return low
-    if value > high:
-        return high
-    return value
-
-
-def round_to_int(value):
-    if value >= 0:
-        return int(value + 0.5)
-    return int(value - 0.5)
-
-
-def reached_target_distance(distance_mm):
-    if AUTO_TARGET_DISTANCE_MM >= 0:
-        return distance_mm >= AUTO_TARGET_DISTANCE_MM
-    return distance_mm <= AUTO_TARGET_DISTANCE_MM
-
-
-def pair_drive_motors():
-    try:
-        motor_pair.pair(
-            DRIVE_PAIR,
-            LEFT_DRIVE_MOTOR_PORT,
-            RIGHT_DRIVE_MOTOR_PORT,
-        )
-    except Exception:
-        pass
-
-
-def stop_drive_motors():
-    try:
-        motor_pair.stop(DRIVE_PAIR, stop=motor.BRAKE)
-    except TypeError:
-        motor_pair.stop(DRIVE_PAIR)
-    except Exception:
-        pass
-
-
-def apply_proportional_drive(error):
-    correction = round_to_int(error * AUTO_KP * AUTO_STEERING_DIRECTION)
-    correction = limit(correction, -AUTO_MAX_CORRECTION, AUTO_MAX_CORRECTION)
-
-    left_speed = limit(
-        AUTO_BASE_SPEED + correction,
-        -AUTO_MAX_SPEED,
-        AUTO_MAX_SPEED,
-    )
-    right_speed = limit(
-        AUTO_BASE_SPEED - correction,
-        -AUTO_MAX_SPEED,
-        AUTO_MAX_SPEED,
-    )
-
-    left_speed *= LEFT_DRIVE_MOTOR_DIRECTION
-    right_speed *= RIGHT_DRIVE_MOTOR_DIRECTION
-    motor_pair.move_tank(DRIVE_PAIR, left_speed, right_speed)
-    return correction
-
-
-def log_navigation_row(
-    log,
-    start_ms,
-    distance,
-    current_angle,
-    target_angle,
-    error,
-    correction,
-):
-    log.log(
-        elapsed_ms(start_ms),
-        distance,
-        current_angle,
-        round_to_int(target_angle),
-        round_to_int(error),
-        correction,
     )
 
 
@@ -475,49 +329,6 @@ async def record_motion_log(name):
         await runloop.sleep_ms(SAMPLE_MS)
 
 
-async def run_autonomous_navigation(name):
-    await wait_for_buttons_released()
-    await light_matrix.write("A")
-
-    await reset_sensors()
-    pair_drive_motors()
-    log = make_navigation_log(name)
-    left_tracker = MotorTracker(LEFT_DRIVE_MOTOR_PORT, LEFT_DRIVE_MOTOR_DIRECTION)
-    right_tracker = MotorTracker(RIGHT_DRIVE_MOTOR_PORT, RIGHT_DRIVE_MOTOR_DIRECTION)
-    gyro_tracker = GyroTracker()
-    start = time.ticks_ms()
-
-    try:
-        while True:
-            distance, current_angle = read_drive_state(
-                left_tracker,
-                right_tracker,
-                gyro_tracker,
-            )
-            target_angle = target_angle_for_distance(distance)
-            error = angle_error(target_angle, current_angle)
-            correction = apply_proportional_drive(error)
-            log_navigation_row(
-                log,
-                start,
-                distance,
-                current_angle,
-                target_angle,
-                error,
-                correction,
-            )
-
-            if reached_target_distance(distance) or left_pressed() or right_pressed():
-                break
-
-            await runloop.sleep_ms(AUTO_SAMPLE_MS)
-    finally:
-        stop_drive_motors()
-
-    await wait_for_buttons_released()
-    return log
-
-
 async def main():
     global saved_log
 
@@ -525,11 +336,11 @@ async def main():
 
     while True:
         if both_pressed():
-            saved_log = None
-            clear_persisted_log()
-            saved_log = await run_autonomous_navigation("autonomous_robot")
-            persist_log(saved_log)
-            await light_matrix.write("1")
+            await wait_for_buttons_released()
+            if saved_log is not None or persisted_log_exists():
+                await light_matrix.write("1")
+            else:
+                await light_matrix.write("0")
 
         elif left_pressed():
             await wait_for_buttons_released()
