@@ -106,7 +106,7 @@ class SpikeLogCollector:
         filename = safe_filename(name or self.current_name or "spike_log")
         path = unique_path(self.log_dir / (filename + "_" + stamp + ".csv"))
 
-        with path.open("w", newline="", encoding="utf-8") as output:
+        with path.open("w", newline="", encoding="utf-8-sig") as output:
             writer = csv.writer(output)
             writer.writerows(self.current_rows)
 
@@ -200,13 +200,30 @@ def unique_path(path):
         counter += 1
 
 
+def clean_text_for_file(text):
+    cleaned = []
+    for character in text:
+        code = ord(character)
+        if character in "\n\r\t" or 32 <= code <= 126:
+            cleaned.append(character)
+        elif character == "\x00":
+            continue
+        else:
+            cleaned.append(" ")
+
+    text = "".join(cleaned)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r" *\r?\n *", "\n", text)
+    return text.strip() + "\n"
+
+
 def save_raw_serial_text(text, log_dir):
     log_dir = Path(log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    path = unique_path(log_dir / ("raw_serial_" + stamp + ".txt"))
-    path.write_text(text, encoding="utf-8")
-    print("info: saved raw serial text:", path)
+    path = unique_path(log_dir / ("raw_serial_readable_" + stamp + ".txt"))
+    path.write_text(clean_text_for_file(text), encoding="utf-8")
+    print("info: saved readable raw serial text:", path)
     return path
 
 
@@ -234,7 +251,7 @@ def save_parsed_rows(rows, log_dir, name="parsed_serial"):
     text_lines.extend(",".join(row) for row in rows)
     txt_path.write_text("\n".join(text_lines) + "\n", encoding="utf-8")
 
-    with csv_path.open("w", newline="", encoding="utf-8") as output:
+    with csv_path.open("w", newline="", encoding="utf-8-sig") as output:
         writer = csv.writer(output)
         writer.writerow(headers)
         writer.writerows(rows)
@@ -310,7 +327,8 @@ def process_text(text, collector):
 
 
 def read_from_file(path, collector):
-    text = Path(path).read_text(encoding="utf-8")
+    text = Path(path).read_text(encoding="utf-8", errors="replace")
+    text = clean_text_for_file(text)
     process_text(text, collector)
 
 
