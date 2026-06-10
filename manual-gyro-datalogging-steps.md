@@ -98,6 +98,11 @@ CSV_END
 
 Paste only the CSV lines into Google Sheets, Excel, Numbers, or a `.csv` file.
 
+If the collector says it parsed possible log lines but does not save a CSV,
+look in `code/logs/` for a `raw_serial_readable_*.txt` file. That file is the
+readable hub output that reached the computer. You can parse it afterward with
+`python3 code/tools/collect_spike_logs.py --file code/logs/raw_serial_readable_YYYYMMDD_HHMMSS.txt`.
+
 The saved file contains:
 
 ```csv

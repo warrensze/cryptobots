@@ -406,9 +406,16 @@ def read_from_serial(port, baud, collector):
 
                 if buffer and last_data_at and time.monotonic() - last_data_at >= 1:
                     text = "".join(buffer)
-                    line_count = process_text(text, collector)
+                    saved_before = len(collector.saved_files)
+                    raw_path = save_raw_serial_text(text, collector.log_dir)
+                    clean_text = clean_text_for_file(text)
+                    line_count = process_text(clean_text, collector)
                     print("info: parsed", line_count, "possible log line(s) from serial data")
                     collector.finish()
+                    if len(collector.saved_files) == saved_before:
+                        print("warning: serial data was received, but no CSV rows were saved.")
+                        print("info: saved the raw hub output for troubleshooting:", raw_path)
+                        print("info: expected rows look like CBLOG_ROW,4,0,0 or plain CSV rows like 4,0,0")
                     buffer = []
                     last_data_at = None
     except serial.SerialException as error:

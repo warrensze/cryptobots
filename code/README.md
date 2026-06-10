@@ -108,6 +108,11 @@ If you saved hub output to a text file, parse it afterward:
 python3 code/tools/collect_spike_logs.py --file hub-output.txt
 ```
 
+If the collector says it parsed possible log lines but does not save a CSV,
+look in `code/logs/` for a `raw_serial_readable_*.txt` file. That file is the
+exact readable output received from the hub and can be parsed later with
+`--file`.
+
 ## Saved CSV Format
 
 The collector saves a CSV with exactly:

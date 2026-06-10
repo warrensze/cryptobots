@@ -69,6 +69,7 @@ It uses:
 - hub yaw for gyro angle
 - `SAMPLE_MS = 1` for dense short-route logging
 - `MAX_ROWS_PER_LOG = 8000`
+- stable button-release detection before arming the next button action
 
 The active program has a `ROBOT CONFIGURATION` section near the top. Default robot constants:
 
@@ -81,6 +82,11 @@ WHEEL_CIRCUMFERENCE_MM = 176
 ```
 
 Valid SPIKE Prime motor ports are `port.A` through `port.F`.
+
+There is no intentional recording time limit. The right button starts and stops
+recording. The code waits for a stable release after the start press so the
+same press is not reused as the stop press, but it does not ignore a later stop
+press based on elapsed time.
 
 ## Workflow
 
@@ -96,6 +102,7 @@ Valid SPIKE Prime motor ports are `port.A` through `port.F`.
 10. Hub dumps tagged log rows.
 11. Collector saves a clean CSV into `code/logs/`.
 12. If the collector fails, copy the plain CSV fallback printed between `CSV_START` and `CSV_END`.
+13. If serial data arrives but no CSV is saved, check `code/logs/` for a `raw_serial_readable_*.txt` troubleshooting file and parse it later with `code/tools/collect_spike_logs.py --file`.
 
 Button behavior:
 
@@ -114,6 +121,16 @@ robot_log.csv
 This backup helps if the hub program restarts when reconnecting to the computer.
 
 Starting a new recording replaces the previous saved run.
+
+The backup file includes both tagged collector rows and the plain CSV fallback
+so reconnect/restart recovery still has a copy/paste path.
+
+## Recent Debugging Context
+
+- The collector previously printed `info: parsed N possible log line(s) from serial data` without explaining why no CSV was saved.
+- `code/tools/collect_spike_logs.py` now saves readable raw serial output to `code/logs/raw_serial_readable_*.txt` whenever serial data is received.
+- If no CSV rows are saved from serial data, the collector now prints a warning and points to the raw file.
+- A temporary `MIN_RECORDING_MS` stop-button lockout was rejected and removed. The current code uses stable button-release detection instead.
 
 ## Merge Context
 

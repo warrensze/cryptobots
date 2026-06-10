@@ -140,6 +140,84 @@ will this code work without using a separate vs code extension?
 we are only doing 1 run at a time.  Make it cleaner so that we can just copy and paste
 ```
 
+## Prompt 24
+
+```text
+The recording and datalogging will be done with the robot NOT connected to anything.  Will the scripts still work?
+```
+
+## Prompt 25
+
+```text
+I can't sync.  Help me merge
+```
+
+## Prompt 26
+
+```text
+are you still there?  What is taking so long?
+```
+
+## Prompt 27
+
+```text
+You made it less user friendly.  The previous code used to create a csv file and saved it in the logs folder.  Modify the latest script to do that so there is no need to copy and paste
+```
+
+## Prompt 28
+
+```text
+Modify it so that the output is also printed to the console in case the collector fails
+```
+
+## Prompt 29
+
+```text
+double check the code and review for any potential issues or errors
+```
+
+## Prompt 30
+
+```text
+Does the code expect certain ports to be used?  If so, then make it easily configurable
+```
+
+## Prompt 31
+
+```text
+The hub stops recording too quickly.  Is there some sort of time limit?
+```
+
+## Prompt 32
+
+```text
+that is not a good solution, do not ignore the stop button press
+```
+
+## Prompt 33
+
+```text
+is there a limit to how much space can be stored in the hub memory?
+```
+
+## Prompt 34
+
+```text
+what is the current instructions for using the data logging?
+```
+
+## Prompt 35
+
+```text
+There was no output on the console.  The only thing I saw is "Info: Parsed 10 possible log lines from serial data".  There was no csv file created.  No errors being printed.
+```
+
+## Prompt 36
+
+```text
+Be sure to update our context conversation in the appropriate file.  Do not create new ones, you must find the right file
+```
+
 ## Notes
 
-The current implementation focus is one-run-at-a-time manual drive datalogging on SPIKE Prime using stock LEGO MicroPython. The hub prints plain CSV directly to the VS Code console with columns `time,distance,gyro_angle`.
+The current implementation focus is one-run-at-a-time manual drive datalogging on SPIKE Prime using stock LEGO MicroPython. The hub stores one run, writes a hub backup file, prints tagged collector rows, and also prints a plain CSV fallback with columns `time,distance,gyro_angle`. The collector saves CSV files into `code/logs/` and now also saves raw readable serial output when serial data arrives but no CSV is produced.
