@@ -74,6 +74,72 @@ Disconnect the project from the original repo.  I don't want to accidently write
 update the docs with any latest changes or context
 ```
 
+## Prompt 13
+
+```text
+The folders have moved around a little.  There is a cryptobots folder and superpower folder.  The current scripts we made for datalogging isn't working quite right.  Review the datalogging code under superpower.  Analyze our scripts under cryptobots.  Plan out again a script to mimic the datalogging code exactly using micropython
+```
+
+## Prompt 14
+
+```text
+the datalogging we need is only time, distance and gyroangle.  You can leave off the other metrics.
+```
+
+## Prompt 15
+
+```text
+Here is an example of what the original DataLogger output.  We want the exact same format.  A nice csv that we can use
+```
+
+## Prompt 16
+
+```text
+Examine the original DataLogger code and see what units their time is in.
+```
+
+## Prompt 17
+
+```text
+Is our DataLogging tracking data at the same frequency as the original?  When we were using it before we were expecting more data points
+```
+
+## Prompt 18
+
+```text
+we need to be the same or as close to the original as possible
+```
+
+## Prompt 19
+
+```text
+we need denser.  The route is usually only 2-3 seconds long anyways.  Make it as dense as the original
+```
+
+## Prompt 20
+
+```text
+how do we get the data off of the hub?  Is it as easy as it can be?
+```
+
+## Prompt 21
+
+```text
+it will already be connected using a vs code extension
+```
+
+## Prompt 22
+
+```text
+will this code work without using a separate vs code extension?
+```
+
+## Prompt 23
+
+```text
+we are only doing 1 run at a time.  Make it cleaner so that we can just copy and paste
+```
+
 ## Notes
 
-The current implementation focus is manual gyro/motion datalogging on SPIKE Prime using stock LEGO MicroPython.
+The current implementation focus is one-run-at-a-time manual drive datalogging on SPIKE Prime using stock LEGO MicroPython. The hub prints plain CSV directly to the VS Code console with columns `time,distance,gyro_angle`.

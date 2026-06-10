@@ -26,7 +26,11 @@ Current key file:
 code/hub/main.py
 ```
 
-The user wants a LEGO SPIKE Prime datalogging workflow using stock LEGO SPIKE Prime MicroPython and Visual Studio Code, without Pybricks.
+The user wants a LEGO SPIKE Prime datalogging workflow using stock LEGO SPIKE Prime MicroPython and Visual Studio Code, without Pybricks. The latest target is to mimic the original Pybricks `DataLog` spreadsheet format with exactly these saved CSV columns:
+
+```csv
+time,distance,gyro_angle
+```
 
 ## What Was Reviewed
 
@@ -77,13 +81,13 @@ Preferred workflow:
 
 1. Upload logging program to the SPIKE Prime hub.
 2. Disconnect computer.
-3. Press a hub button to start gyro/motion logging.
-4. Move the robot manually.
+3. Press a hub button to start datalogging.
+4. Move the robot manually while the drive wheels turn the motor encoders.
 5. Press a hub button to stop logging.
-6. Store data on the hub in memory.
-7. Connect computer only at the end.
-8. Trigger a dump/download from the hub.
-9. Computer script saves CSV files automatically.
+6. Store one run on the hub in memory.
+7. Connect computer only at the end if needed.
+8. Press left button to print plain CSV in the VS Code console.
+9. Copy/paste the CSV directly.
 
 Important caveat:
 
@@ -94,17 +98,15 @@ The first design should assume RAM-based storage on the hub, not persistent file
 Hub-side:
 
 - custom `DataLog` class
-- optional `LogSession` class for multiple runs
-- clean output markers: `LOG_START,<name>` and `LOG_END,<name>`
-- CSV headers and rows
-- button-triggered download/dump
+- one saved run at a time
+- plain CSV headers and rows
+- button-triggered console print
 
 Computer-side:
 
-- `cryptobots/code/tools/collect_spike_logs.py`
-- listens to hub output
-- detects log blocks
-- writes CSV files under `cryptobots/code/logs/`
+- VS Code/SPIKE console output
+- copy/paste from `time,distance,gyro_angle` through the last row
+- `code/tools/collect_spike_logs.py` remains in the repo as an older optional helper, but it is no longer required for the normal one-run workflow
 
 ## Implemented Files
 
@@ -121,55 +123,47 @@ code/tools/sample_hub_output.txt
 manual-gyro-datalogging-steps.md
 ```
 
-`hub/main.py` defines `DataLog` and `LogSession` inside the same file so only one program must be uploaded to the hub. `hub/logger.py` is only a reference copy.
+`hub/main.py` defines `DataLog` inside the same file so only one program must be uploaded to the hub. `hub/logger.py` is only a reference copy.
 
 `hub/main.py` is now the recommended manual gyro logger:
 
 - right button: start recording
 - right button again: stop recording
-- left button: dump/download saved logs after connecting the computer
-- both buttons: clear saved logs
+- left button: print plain CSV to the VS Code console
+- both buttons: clear saved run
 
 Important: the SPIKE upload flow can only upload one hub program. Upload only `code/hub/main.py` for the recommended workflow.
 
 It records:
 
-- `time_ms`
-- `yaw_ddeg`
-- `pitch_ddeg`
-- `roll_ddeg`
-- `x_rate_ddeg_s`
-- `y_rate_ddeg_s`
-- `z_rate_ddeg_s`
-- `event`
+- `time`
+- `distance`
+- `gyro_angle`
 
-`tools/collect_spike_logs.py` can parse a saved output file, stdin, or a serial port if the user's SPIKE setup exposes one.
+The normal workflow no longer needs `tools/collect_spike_logs.py` because the hub prints plain CSV for one run at a time.
 
 ## Proposed Logger API
 
 ```python
 log = DataLog(
-    "time_ms",
-    "yaw_ddeg",
-    "pitch_ddeg",
-    "roll_ddeg",
-    name="manual_gyro",
-    max_rows=1200
+    "time",
+    "distance",
+    "gyro_angle",
+    name="log_robot",
+    max_rows=8000
 )
 
-log.log(time_ms, yaw_ddeg, pitch_ddeg, roll_ddeg)
+log.log(time_ms, distance_mm, gyro_angle)
 log.dump()
 ```
 
 ## Proposed Output Format
 
 ```csv
-LOG_START,manual_gyro_1
-time_ms,yaw_ddeg,pitch_ddeg,roll_ddeg,x_rate_ddeg_s,y_rate_ddeg_s,z_rate_ddeg_s,event
-0,0,0,0,0,0,0,start
-50,12,0,1,240,0,10,record
-100,25,0,1,260,0,10,record
-LOG_END,manual_gyro_1
+time,distance,gyro_angle
+4,0,0
+11,0,0
+20,0,0
 ```
 
 ## Current Documentation Added
@@ -184,6 +178,12 @@ The implementation documentation is in:
 
 - `code/README.md`
 - `manual-gyro-datalogging-steps.md`
+
+Sampling rate:
+
+- `SAMPLE_MS = 1`
+- `MAX_ROWS_PER_LOG = 8000`
+- This is tuned for short 2-3 second routes and aims to be as dense as practical on stock SPIKE MicroPython.
 
 ## User Preferences From This Session
 

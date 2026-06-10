@@ -37,26 +37,30 @@ code/
 
 ## Hub Files
 
-`hub/main.py` is the only file you need to upload to the SPIKE hub for the recommended workflow. It records the hub gyro/motion sensor while a user moves the robot by hand.
+`hub/main.py` is the only file you need to upload to the SPIKE hub for the recommended workflow. It records the same basic CSV columns shown in the original SuperPowered Pybricks `DataLog` spreadsheet:
+
+```csv
+time,distance,gyro_angle
+```
 
 It includes its own copy of:
 
 - `DataLog`: stores CSV rows in memory and dumps them later
-- `LogSession`: stores several completed `DataLog` objects until download time
 
 Button controls:
 
 - right button: start recording
 - right button again: stop recording
-- left button: dump saved logs after the computer is connected
-- both buttons: clear saved logs
+- left button: print the saved CSV to the VS Code console
+- both buttons: clear the saved run
 
 Light matrix codes:
 
 - `S`: standing by, ready to start
 - `R`: recording
-- `0` to `5`: number of saved logs
-- `U`: dumping logs to the computer
+- `1`: one run is saved
+- `0`: no run is saved
+- `U`: printing CSV to the console
 
 `hub/logger.py` is now only a readable reference copy of the logger design. Do not upload it separately for this workflow.
 
@@ -66,69 +70,76 @@ Light matrix codes:
 
 ## Recommended Workflow
 
-1. Upload only `hub/main.py` to the SPIKE hub.
-2. Disconnect the computer if you want to collect data away from it.
-3. Press the right button. The hub shows `R`.
-4. Move the robot by hand. Turn it, push it, rotate it, or test the path you care about.
-5. Press the right button again. The hub shows the number of saved logs.
-6. Repeat steps 3-5 if you want more recordings. Up to 5 are stored.
-7. Plug the hub back into the computer.
-8. Start the collector script.
-9. Press the left button on the hub. The hub shows `U` and dumps the saved data.
-10. CSV files appear in `code/logs/`.
+1. In `hub/main.py`, check the drive motor ports and wheel size.
+2. Upload only `hub/main.py` to the SPIKE hub.
+3. Disconnect the computer if you want to collect data away from it.
+4. Press the right button. The hub shows `R`.
+5. Move the robot by hand. Distance is calculated from the drive motor encoders, so the drive wheels must turn.
+6. Press the right button again. The hub shows `1`, meaning one run is saved.
+7. Plug the hub back into the computer if it was disconnected.
+8. Open the SPIKE/VS Code console output.
+9. Press the left button on the hub. The hub shows `U` and prints the CSV.
+10. Copy from the `time,distance,gyro_angle` header through the last data row.
+11. Paste directly into Google Sheets, Excel, Numbers, or a `.csv` file.
 
-The CSV columns are:
+## Robot Setup
+
+The default hub code assumes:
+
+```python
+LEFT_MOTOR = port.A
+RIGHT_MOTOR = port.B
+WHEEL_DIAMETER_MM = 56
+```
+
+If distance is negative or stays near zero while the robot moves forward, change one motor direction:
+
+```python
+LEFT_MOTOR_DIRECTION = 1
+RIGHT_MOTOR_DIRECTION = -1
+```
+
+## CSV Format
+
+The saved CSV columns are exactly:
 
 ```text
-time_ms,yaw_ddeg,pitch_ddeg,roll_ddeg,x_rate_ddeg_s,y_rate_ddeg_s,z_rate_ddeg_s,event
+time,distance,gyro_angle
 ```
 
-SPIKE reports angles in decidegrees. Divide by 10 to get degrees.
-
-Example:
-
-```text
-yaw_ddeg = 450 means yaw = 45.0 degrees
-```
-
-## Collector Usage
-
-If your setup exposes hub output as a serial port:
-
-```bash
-python3 code/tools/collect_spike_logs.py --port /dev/cu.usbmodemXXXX
-```
-
-On Windows, the port may look like:
-
-```bash
-python code/tools/collect_spike_logs.py --port COM5
-```
-
-If you have saved hub output to a text file, parse it afterward:
-
-```bash
-python3 code/tools/collect_spike_logs.py --file hub-output.txt
-```
-
-The collector looks for blocks like this:
+Example saved CSV:
 
 ```csv
-LOG_START,manual_gyro_1
-time_ms,yaw_ddeg,pitch_ddeg,roll_ddeg,x_rate_ddeg_s,y_rate_ddeg_s,z_rate_ddeg_s,event
-0,0,0,0,0,0,0,start
-50,12,0,1,240,0,10,record
-100,25,0,1,260,0,10,record
-LOG_END,manual_gyro_1
+time,distance,gyro_angle
+4,0,0
+11,0,0
+20,0,0
 ```
 
-It saves only the CSV headers and rows, without the `LOG_START` and `LOG_END` marker lines.
+`time` is milliseconds from the start of the recording.
+`distance` is millimeters calculated from the drive motor encoders.
+`gyro_angle` is hub yaw in degrees.
+
+## Copy/Paste Output
+
+Because the team is doing one run at a time, the hub prints plain CSV with no wrapper lines:
+
+```csv
+time,distance,gyro_angle
+4,0,0
+11,0,0
+20,0,0
+```
+
+The old collector script is still in `code/tools/collect_spike_logs.py`, but the normal workflow no longer needs it.
 
 ## Important Limit
 
-The hub stores logs in memory. Download the data before powering off or resetting the hub.
+The hub stores one run in memory. Copy the data before powering off or resetting the hub. Starting a new recording replaces the previous saved run.
 
-Start with short tests and `SAMPLE_MS = 50`. The default `MAX_ROWS_PER_LOG = 1200` is about one minute of data per recording.
+The logger uses `SAMPLE_MS = 1` to collect dense data for short 2-3 second FLL paths. The real row spacing will be limited by SPIKE sensor reads and MicroPython loop overhead, but this is intentionally tuned to be as close as practical to the original Pybricks `DataLog` density.
+
+The default `MAX_ROWS_PER_LOG = 8000` is sized for short route recordings.
 
 ## Notes
 
@@ -137,4 +148,6 @@ This code targets the SPIKE 3 style MicroPython API, which uses modules such as:
 - `hub.button`
 - `hub.light_matrix`
 - `hub.motion_sensor`
+- `hub.port`
+- `motor`
 - `runloop`

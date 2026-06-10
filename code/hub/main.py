@@ -1,6 +1,7 @@
 import time
 
-from hub import button, light_matrix, motion_sensor
+from hub import button, light_matrix, motion_sensor, port
+import motor
 import runloop
 
 
@@ -21,43 +22,9 @@ class DataLog:
             self.dropped_rows += 1
 
     def dump(self):
-        print("LOG_START," + csv_value(self.name))
-        if self.dropped_rows:
-            print("LOG_DROPPED," + str(self.dropped_rows))
         print(csv_row(self.headers))
         for row in self.rows:
             print(csv_row(row))
-        print("LOG_END," + csv_value(self.name))
-
-
-class LogSession:
-    """Hold completed logs in memory until the user downloads them."""
-
-    def __init__(self, max_logs=5):
-        self.max_logs = max_logs
-        self.logs = []
-        self.dropped_logs = 0
-
-    def add(self, datalog):
-        if len(self.logs) < self.max_logs:
-            self.logs.append(datalog)
-        else:
-            self.dropped_logs += 1
-
-    def clear(self):
-        self.logs = []
-        self.dropped_logs = 0
-
-    def count(self):
-        return len(self.logs)
-
-    def dump_all(self):
-        print("SESSION_START," + str(len(self.logs)))
-        if self.dropped_logs:
-            print("SESSION_DROPPED," + str(self.dropped_logs))
-        for datalog in self.logs:
-            datalog.dump()
-        print("SESSION_END," + str(len(self.logs)))
 
 
 def csv_row(values):
@@ -75,13 +42,24 @@ def csv_value(value):
     return text
 
 
-# 50 ms = 20 samples/second. 1200 rows is about one minute of recording.
-SAMPLE_MS = 50
-MAX_ROWS_PER_LOG = 1200
-MAX_SAVED_LOGS = 5
+# Keep sampling as dense as practical for short 2-3 second FLL paths.
+# The sensor reads and row storage add overhead, so the actual row spacing will
+# usually be slower than 1 ms, but this keeps us close to the original DataLog.
+SAMPLE_MS = 1
+MAX_ROWS_PER_LOG = 8000
 
-session = LogSession(max_logs=MAX_SAVED_LOGS)
-recording_number = 1
+# Change these if the drive motors are plugged into different ports.
+LEFT_MOTOR = port.A
+RIGHT_MOTOR = port.B
+
+# Change these if one wheel counts backward when the robot is pushed forward.
+LEFT_MOTOR_DIRECTION = 1
+RIGHT_MOTOR_DIRECTION = 1
+
+# Change this to match your wheel. Common SPIKE/FLL wheels are 56 mm.
+WHEEL_DIAMETER_MM = 56
+
+saved_log = None
 
 
 def left_pressed():
@@ -105,91 +83,95 @@ def elapsed_ms(start_ms):
     return time.ticks_diff(time.ticks_ms(), start_ms)
 
 
-def make_gyro_log(name):
+def make_drive_log(name):
     return DataLog(
-        "time_ms",
-        "yaw_ddeg",
-        "pitch_ddeg",
-        "roll_ddeg",
-        "x_rate_ddeg_s",
-        "y_rate_ddeg_s",
-        "z_rate_ddeg_s",
-        "event",
+        "time",
+        "distance",
+        "gyro_angle",
         name=name,
         max_rows=MAX_ROWS_PER_LOG,
     )
 
 
-def log_motion_row(log, start_ms, event):
-    yaw, pitch, roll = motion_sensor.tilt_angles()
-    x_rate, y_rate, z_rate = motion_sensor.angular_velocity(False)
-    log.log(
-        elapsed_ms(start_ms),
-        yaw,
-        pitch,
-        roll,
-        x_rate,
-        y_rate,
-        z_rate,
-        event,
-    )
+def safe_motor_position(motor_port):
+    try:
+        return motor.relative_position(motor_port)
+    except Exception:
+        return 0
 
 
-async def record_motion_log(name):
-    await wait_for_buttons_released()
-    await light_matrix.write("R")
+def reset_sensors():
+    try:
+        motor.reset_relative_position(LEFT_MOTOR, 0)
+        motor.reset_relative_position(RIGHT_MOTOR, 0)
+    except Exception:
+        pass
 
     try:
         motion_sensor.reset_yaw(0)
     except Exception:
         pass
 
-    log = make_gyro_log(name)
+
+def distance_mm():
+    left_degrees = safe_motor_position(LEFT_MOTOR) * LEFT_MOTOR_DIRECTION
+    right_degrees = safe_motor_position(RIGHT_MOTOR) * RIGHT_MOTOR_DIRECTION
+    average_degrees = (left_degrees + right_degrees) // 2
+    return (average_degrees * WHEEL_DIAMETER_MM * 314) // 36000
+
+
+def gyro_angle_degrees():
+    return motion_sensor.tilt_angles()[0] // 10
+
+
+def log_drive_row(log, start_ms):
+    log.log(elapsed_ms(start_ms), distance_mm(), gyro_angle_degrees())
+
+
+async def record_motion_log(name):
+    await wait_for_buttons_released()
+    await light_matrix.write("R")
+
+    reset_sensors()
+    await runloop.sleep_ms(50)
+
+    log = make_drive_log(name)
     start = time.ticks_ms()
-    log_motion_row(log, start, "start")
+    log_drive_row(log, start)
 
     while True:
         if right_pressed():
-            log_motion_row(log, start, "stop")
+            log_drive_row(log, start)
             await wait_for_buttons_released()
             return log
 
-        log_motion_row(log, start, "record")
+        log_drive_row(log, start)
         await runloop.sleep_ms(SAMPLE_MS)
 
 
-async def show_saved_count():
-    count = session.count()
-    if count < 10:
-        await light_matrix.write(str(count))
-    else:
-        await light_matrix.write("9")
-
-
 async def main():
-    global recording_number
+    global saved_log
 
     await light_matrix.write("S")
 
     while True:
         if both_pressed():
-            session.clear()
-            recording_number = 1
+            saved_log = None
             await wait_for_buttons_released()
             await light_matrix.write("0")
 
         elif left_pressed():
             await wait_for_buttons_released()
-            await light_matrix.write("U")
-            session.dump_all()
-            await show_saved_count()
+            if saved_log is None:
+                await light_matrix.write("0")
+            else:
+                await light_matrix.write("U")
+                saved_log.dump()
+                await light_matrix.write("1")
 
         elif right_pressed():
-            name = "manual_gyro_" + str(recording_number)
-            recording_number += 1
-            log = await record_motion_log(name)
-            session.add(log)
-            await show_saved_count()
+            saved_log = await record_motion_log("log_robot")
+            await light_matrix.write("1")
 
         await runloop.sleep_ms(25)
 
