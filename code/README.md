@@ -40,7 +40,8 @@ Button controls:
 - right button: start recording
 - right button again: stop recording
 - left button: dump the saved run so the collector can save a CSV
-- both buttons: run the autonomous path from `code/logs/equation.txt`
+- both buttons: show whether a saved run exists
+- red seen by the color sensor on port `D`: run the autonomous path from `code/logs/equation.txt`
 
 Light matrix codes:
 
@@ -81,8 +82,9 @@ For each loop, the robot:
 4. calculates `error = target_angle - gyro_angle`
 5. applies proportional steering correction with `AUTO_KP`
 
-Press both hub buttons to start autonomous navigation. Press either hub button
-during the run to stop early. The hub saves an autonomous debug CSV with:
+Put red under the color sensor on port `D` to start autonomous navigation. Remove
+the red marker before trying to start another autonomous run. Press either hub
+button during the run to stop early. The hub saves an autonomous debug CSV with:
 
 ```csv
 time,distance,gyro_angle,target_angle,error,correction
@@ -112,6 +114,7 @@ LEFT_DRIVE_MOTOR_PORT = port.B
 RIGHT_DRIVE_MOTOR_PORT = port.F
 LEFT_DRIVE_MOTOR_DIRECTION = 1
 RIGHT_DRIVE_MOTOR_DIRECTION = 1
+AUTONOMOUS_START_SENSOR_PORT = port.D
 WHEEL_CIRCUMFERENCE_MM = 176
 ```
 

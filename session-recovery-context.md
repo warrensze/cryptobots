@@ -78,6 +78,7 @@ LEFT_DRIVE_MOTOR_PORT = port.B
 RIGHT_DRIVE_MOTOR_PORT = port.F
 LEFT_DRIVE_MOTOR_DIRECTION = 1
 RIGHT_DRIVE_MOTOR_DIRECTION = 1
+AUTONOMOUS_START_SENSOR_PORT = port.D
 WHEEL_CIRCUMFERENCE_MM = 176
 ```
 
@@ -109,6 +110,11 @@ Button behavior:
 - right button: start/stop recording
 - left button: dump saved run to collector
 - both buttons: show whether a saved run exists
+- red seen by the color sensor on port `D`: start autonomous navigation
+
+Autonomous navigation is latched so it starts once when red is first seen. The
+red marker must be removed before another red trigger can start another
+autonomous run.
 
 ## Persistence
 

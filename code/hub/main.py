@@ -1,6 +1,12 @@
 import time
 
 from hub import button, light_matrix, motion_sensor, port
+try:
+    import color
+    import color_sensor
+except ImportError:
+    color = None
+    color_sensor = None
 import motor
 import motor_pair
 import os
@@ -25,6 +31,10 @@ RIGHT_DRIVE_MOTOR_DIRECTION = 1
 
 # Motor pair used by autonomous navigation.
 DRIVE_PAIR = motor_pair.PAIR_1
+
+# Color sensor used to start autonomous navigation.
+AUTONOMOUS_START_SENSOR_PORT = port.D
+AUTONOMOUS_START_COLOR = getattr(color, "RED", None) if color is not None else None
 
 # Wheel circumference in millimeters. The default is close to a 56 mm wheel.
 WHEEL_CIRCUMFERENCE_MM = 176
@@ -128,6 +138,16 @@ def right_pressed():
 
 def both_pressed():
     return left_pressed() and right_pressed()
+
+
+def autonomous_start_seen():
+    if color_sensor is None or AUTONOMOUS_START_COLOR is None:
+        return False
+
+    try:
+        return color_sensor.color(AUTONOMOUS_START_SENSOR_PORT) == AUTONOMOUS_START_COLOR
+    except Exception:
+        return False
 
 
 async def wait_for_buttons_released():
@@ -517,10 +537,22 @@ async def run_autonomous_navigation(name):
 async def main():
     global saved_log
 
+    autonomous_start_armed = True
     await light_matrix.write("S")
 
     while True:
+        color_start_seen = autonomous_start_seen()
+
         if both_pressed():
+            await wait_for_buttons_released()
+            if saved_log is not None or persisted_log_exists():
+                await light_matrix.write("1")
+            else:
+                await light_matrix.write("0")
+
+        elif color_start_seen and autonomous_start_armed:
+            autonomous_start_armed = False
+            await light_matrix.write("A")
             saved_log = None
             clear_persisted_log()
             saved_log = await run_autonomous_navigation("autonomous_robot")
@@ -545,6 +577,9 @@ async def main():
             saved_log = await record_motion_log("log_robot")
             persist_log(saved_log)
             await light_matrix.write("1")
+
+        elif not color_start_seen:
+            autonomous_start_armed = True
 
         await runloop.sleep_ms(25)
 
