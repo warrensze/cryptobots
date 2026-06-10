@@ -127,7 +127,7 @@ CBLOG_ROW,10,2,1
 LOG_END,manual_gyro_1
 ```
 
-The collector saves clean files named `parsed_serial_...txt` and `parsed_serial_...csv` with only:
+The collector saves a clean Google Sheets-friendly CSV named `robot_log_...csv` with only:
 
 ```csv
 time_ms,distance_mm,gyro_angle_deg
@@ -135,6 +135,8 @@ time_ms,distance_mm,gyro_angle_deg
 5,1,0
 10,2,1
 ```
+
+Import `robot_log_...csv` into Google Sheets. Ignore any older `raw_serial_...txt`, `parsed_serial_...txt`, or `parsed_serial_...csv` files from previous collector versions.
 
 ## Important Limit
 

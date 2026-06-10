@@ -271,27 +271,22 @@ def save_parsed_rows(rows, log_dir, name="parsed_serial"):
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     headers = ["time_ms", "distance_mm", "gyro_angle_deg"]
 
-    txt_path = unique_path(log_dir / (name + "_" + stamp + ".txt"))
-    csv_path = unique_path(log_dir / (name + "_" + stamp + ".csv"))
-
-    text_lines = [",".join(headers)]
-    text_lines.extend(",".join(row) for row in rows)
-    txt_path.write_text("\n".join(text_lines) + "\n", encoding="utf-8")
+    csv_path = unique_path(log_dir / ("robot_log_" + stamp + ".csv"))
 
     with csv_path.open("w", newline="", encoding="utf-8-sig") as output:
         writer = csv.writer(output)
         writer.writerow(headers)
         writer.writerows(rows)
 
-    print("saved parsed txt:", txt_path)
-    print("saved parsed csv:", csv_path)
+    print("saved Google Sheets CSV:", csv_path)
     print("preview:")
-    for line in text_lines[:6]:
-        print("  " + line)
-    if len(text_lines) > 6:
+    print("  " + ",".join(headers))
+    for row in rows[:5]:
+        print("  " + ",".join(row))
+    if len(rows) > 5:
         print("  ...")
 
-    return [txt_path, csv_path]
+    return [csv_path]
 
 
 def iter_clean_lines(text):
@@ -393,7 +388,6 @@ def read_from_serial(port, baud, collector):
 
                 if buffer and last_data_at and time.monotonic() - last_data_at >= 1:
                     text = "".join(buffer)
-                    save_raw_serial_text(text, collector.log_dir)
                     line_count = process_text(text, collector)
                     print("info: parsed", line_count, "possible log line(s) from serial data")
                     collector.finish()
