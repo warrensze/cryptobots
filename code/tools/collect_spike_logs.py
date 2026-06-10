@@ -22,6 +22,26 @@ import time
 
 DEFAULT_LOG_DIR = Path(__file__).resolve().parents[1] / "logs"
 SERIAL_QUIET_SECONDS = 3
+COMPACT_LOG_SCHEMAS = [
+    [
+        "time",
+        "distance",
+        "gyro_angle",
+        "target_angle",
+        "error",
+        "correction",
+    ],
+    [
+        "time",
+        "distance",
+        "gyro_angle",
+    ],
+    [
+        "time_ms",
+        "distance_mm",
+        "gyro_angle_deg",
+    ],
+]
 
 
 class SpikeLogCollector:
@@ -280,34 +300,40 @@ def save_raw_serial_text(text, log_dir):
     return path
 
 
-def extract_three_column_rows(text):
-    rows = []
-    for match in re.finditer(r"CBLOG_ROW\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)", text):
-        row = [match.group(1), match.group(2), match.group(3)]
-        rows.append(row)
+def extract_compact_rows(text):
+    compact_text = re.sub(r"\s+", "", text)
+    for headers in COMPACT_LOG_SCHEMAS:
+        header_text = ",".join(headers)
+        row_pattern = compact_row_pattern(len(headers), tagged=True)
+        rows = [list(match.groups()) for match in re.finditer(row_pattern, compact_text)]
 
-    if rows:
-        return rows
+        if rows:
+            return headers, rows
 
-    if "time" not in text and "LOG_START" not in text:
-        return rows
+        if header_text not in compact_text:
+            continue
 
-    for match in re.finditer(r"-?\d+\s*,\s*-?\d+\s*,\s*-?\d+", text):
-        row = re.sub(r"\s+", "", match.group(0)).split(",")
-        rows.append(row)
+        row_pattern = compact_row_pattern(len(headers), tagged=False)
+        rows = [list(match.groups()) for match in re.finditer(row_pattern, compact_text)]
+        if rows:
+            return headers, rows
 
-    return rows
+    return [], []
 
 
-def save_parsed_rows(rows, log_dir, name="parsed_serial"):
+def compact_row_pattern(width, tagged):
+    number_groups = r"\s*,\s*".join([r"(-?\d+)"] * width)
+    prefix = r"CBLOG_ROW\s*,\s*" if tagged else r""
+    return prefix + number_groups + r"(?!\s*,\s*-?\d)"
+
+
+def save_parsed_rows(headers, rows, log_dir, name="parsed_serial"):
     if not rows:
         return []
 
     log_dir = Path(log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    headers = ["time", "distance", "gyro_angle"]
-
     csv_path = unique_path(log_dir / ("robot_log_" + stamp + ".csv"))
 
     with csv_path.open("w", newline="", encoding="utf-8-sig") as output:
@@ -374,9 +400,9 @@ def iter_extracted_lines(text):
 
 
 def process_text(text, collector):
-    parsed_rows = extract_three_column_rows(text)
+    parsed_headers, parsed_rows = extract_compact_rows(text)
     if parsed_rows:
-        collector.saved_files.extend(save_parsed_rows(parsed_rows, collector.log_dir))
+        collector.saved_files.extend(save_parsed_rows(parsed_headers, parsed_rows, collector.log_dir))
         return len(parsed_rows)
 
     starting_saved_count = len(collector.saved_files)
