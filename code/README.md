@@ -67,15 +67,16 @@ Light matrix codes:
 ## Recommended Workflow
 
 1. Upload only `hub/main.py` to the SPIKE hub.
-2. Disconnect the computer if you want to collect data away from it.
-3. Press the right button. The hub shows `R`.
-4. Move the robot by hand. Turn it, push it, rotate it, or test the path you care about.
-5. Press the right button again. The hub shows the number of saved logs.
-6. Repeat steps 3-5 if you want more recordings. Up to 5 are stored.
-7. Plug the hub back into the computer.
-8. Start the collector script.
-9. Press the left button on the hub. The hub shows `U` and dumps the saved data.
-10. CSV files appear in `code/logs/`.
+2. Press both hub buttons once to clear old saved logs. The hub shows `0`.
+3. Disconnect the computer if you want to collect data away from it.
+4. Press the right button. The hub shows `R`.
+5. Move the robot by hand. Turn it, push it, rotate it, or test the path you care about.
+6. Press the right button again. The hub shows the number of saved logs.
+7. Repeat steps 4-6 if you want more recordings. Up to 5 are stored.
+8. Plug the hub back into the computer.
+9. Start the collector script.
+10. Press the left button on the hub. The hub shows `U` and dumps the saved data.
+11. CSV files appear in `code/logs/`.
 
 The CSV columns are:
 
@@ -95,6 +96,8 @@ The default robot configuration is:
 left drive motor = port B
 right drive motor = port F
 ```
+
+If `distance_mm` stays at `0`, confirm that the drive motors are really plugged into ports B and F and that the wheels are actually turning while you move the robot. If `gyro_angle_deg` stays at `0`, the code now sets the yaw face to `motion_sensor.TOP`; if your hub is mounted on a different face, update `YAW_FACE` near the top of `hub/main.py`.
 
 ## Collector Usage
 
