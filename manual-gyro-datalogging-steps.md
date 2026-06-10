@@ -32,6 +32,7 @@ LEFT_DRIVE_MOTOR_PORT = port.B
 RIGHT_DRIVE_MOTOR_PORT = port.F
 LEFT_DRIVE_MOTOR_DIRECTION = 1
 RIGHT_DRIVE_MOTOR_DIRECTION = 1
+AUTONOMOUS_START_SENSOR_PORT = port.D
 WHEEL_CIRCUMFERENCE_MM = 176
 ```
 
@@ -167,4 +168,5 @@ Right button = start recording
 Right button = stop recording
 Left button = print saved CSV
 Both buttons = show whether a saved run exists
+Red on port D color sensor = start autonomous navigation
 ```
