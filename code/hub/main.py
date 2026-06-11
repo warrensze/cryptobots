@@ -407,22 +407,23 @@ def reached_target_distance(distance_mm):
     return distance_mm <= AUTO_TARGET_DISTANCE_MM
 
 
-def pair_drive_motors():
+def drive_motors(left_speed, right_speed):
+    """Drive each motor individually (not as a pair) so encoder reads work correctly."""
     try:
-        motor_pair.pair(
-            DRIVE_PAIR,
-            LEFT_DRIVE_MOTOR_PORT,
-            RIGHT_DRIVE_MOTOR_PORT,
-        )
+        motor.run(LEFT_DRIVE_MOTOR_PORT, left_speed * LEFT_DRIVE_MOTOR_DIRECTION)
+        motor.run(RIGHT_DRIVE_MOTOR_PORT, right_speed * RIGHT_DRIVE_MOTOR_DIRECTION)
     except Exception:
         pass
 
 
 def stop_drive_motors():
+    """Stop both drive motors."""
     try:
-        motor_pair.stop(DRIVE_PAIR, stop=motor.BRAKE)
+        motor.stop(LEFT_DRIVE_MOTOR_PORT, motor.BRAKE)
+        motor.stop(RIGHT_DRIVE_MOTOR_PORT, motor.BRAKE)
     except TypeError:
-        motor_pair.stop(DRIVE_PAIR)
+        motor.stop(LEFT_DRIVE_MOTOR_PORT)
+        motor.stop(RIGHT_DRIVE_MOTOR_PORT)
     except Exception:
         pass
 
@@ -442,9 +443,7 @@ def apply_proportional_drive(error):
         AUTO_MAX_SPEED,
     )
 
-    left_speed *= LEFT_DRIVE_MOTOR_DIRECTION
-    right_speed *= RIGHT_DRIVE_MOTOR_DIRECTION
-    motor_pair.move_tank(DRIVE_PAIR, left_speed, right_speed)
+    drive_motors(left_speed, right_speed)
     return correction
 
 
@@ -508,7 +507,6 @@ async def run_autonomous_navigation(name):
     await light_matrix.write("A")
 
     await reset_sensors()
-    pair_drive_motors()
     log = make_navigation_log(name)
     left_tracker = MotorTracker(LEFT_DRIVE_MOTOR_PORT, LEFT_DRIVE_MOTOR_DIRECTION)
     right_tracker = MotorTracker(RIGHT_DRIVE_MOTOR_PORT, RIGHT_DRIVE_MOTOR_DIRECTION)
