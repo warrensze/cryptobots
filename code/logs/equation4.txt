@@ -1,0 +1,3 @@
+-21.9 + -0.609x + -6.6E-04x^2
+
+gummy bears used polinomial degree of 5 but 2 seems to be better for our version

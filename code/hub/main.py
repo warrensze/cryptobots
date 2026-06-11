@@ -355,7 +355,6 @@ def log_drive_row(log, start_ms, left_tracker, right_tracker, gyro_tracker):
         gyro_angle,
     )
 
-
 def raw_target_angle_for_distance(distance_mm):
     x = distance_mm
     if x < AUTO_TREND_MIN_DISTANCE_MM:
@@ -363,12 +362,9 @@ def raw_target_angle_for_distance(distance_mm):
     elif x > AUTO_TREND_MAX_DISTANCE_MM:
         x = AUTO_TREND_MAX_DISTANCE_MM
     return (
-        -5.39
-        + (1.15 * x)
-        + (-0.0102 * x * x)
-        + (-0.000283 * x * x * x)
-        + (0.0000112 * x * x * x * x)
-        + (-0.0000000816 * x * x * x * x * x)
+        -21.9
+        + (-0.609 * x)
+        + (-0.0066 * x * x)
     )
 
 
