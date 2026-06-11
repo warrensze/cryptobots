@@ -127,7 +127,9 @@ AUTO_STEERING_DIRECTION = 1
 BUTTON_RELEASE_CHECK_MS = 20
 BUTTON_RELEASE_STABLE_READS = 3
 GYRO_RESET_WAIT_MS = 100
-
+#-21.9 + -0.609x + -6.6E-04x^2
+#5th degree#f(x) = c0 + c1*x + c2*x^2 + c3*x^3 + c4*x^4 + c5*x^5
+#2nd degree#c0 + c1*x + c2*x^2
 saved_log = None
 
 
@@ -355,6 +357,7 @@ def log_drive_row(log, start_ms, left_tracker, right_tracker, gyro_tracker):
         gyro_angle,
     )
 
+
 def raw_target_angle_for_distance(distance_mm):
     x = distance_mm
     if x < AUTO_TREND_MIN_DISTANCE_MM:
@@ -366,7 +369,6 @@ def raw_target_angle_for_distance(distance_mm):
         + (-0.609 * x)
         + (-0.0066 * x * x)
     )
-
 
 AUTO_TARGET_ANGLE_OFFSET = raw_target_angle_for_distance(0)
 
