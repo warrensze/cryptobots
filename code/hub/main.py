@@ -26,8 +26,9 @@ LEFT_DRIVE_MOTOR_PORT = port.B
 RIGHT_DRIVE_MOTOR_PORT = port.F
 
 # Change these if one wheel counts backward when the robot is pushed forward.
+# Common configuration: motors are wired in opposite polarity, so directions differ.
 LEFT_DRIVE_MOTOR_DIRECTION = 1
-RIGHT_DRIVE_MOTOR_DIRECTION = 1
+RIGHT_DRIVE_MOTOR_DIRECTION = -1
 
 # Motor pair used by autonomous navigation.
 DRIVE_PAIR = motor_pair.PAIR_1

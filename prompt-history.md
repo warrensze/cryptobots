@@ -248,6 +248,43 @@ no.  The csv file I gave you was the data from the Datalogging.  The equation wa
 So when we are manually pushing the robot to learn the path is the sensors not recording properly?  Do we need to calibrate first or something else
 ```
 
+## Prompt 42
+
+```text
+read the context and prompt history and get up to date with what is going on. do no skip any part, read thoroughly and think carefully on what is going on.
+```
+
+## Prompt 43
+
+```text
+Now, take a look at the datalogging code and navigation code to see why, when the robot is supposed to move according to the trendline equation to get to the target points without any errors, instead moves randomly or weirly, and not really following the equation? Please fix this.
+```
+
+## Prompt 44
+
+```text
+Change the navigation data to go according to the equation. Also, for some reason when i made a new datalog i moved the robot in an arc to the left, kind of in a curved motion, but the data showed a sort of linear line, then a huge drop. Please make sure that the datalogging code is accurate. Make sure it is not reversing the direction that i am moving the robot in.
+```
+
+## Prompt 45
+
+```text
+also, add all my prompts and the sessions context into the prompt history and session context files
+```
+
 ## Notes
 
 The current implementation focus is one-run-at-a-time manual drive datalogging on SPIKE Prime using stock LEGO MicroPython. The hub stores one run, writes a hub backup file, prints tagged collector rows, and also prints a plain CSV fallback with columns `time,distance,gyro_angle`. The saved run remains available after dumping and is cleared/replaced when a new recording starts. Autonomous navigation starts when the color sensor on port `D` sees red, replacing the older two-button start. The autonomous equation is used as a relative heading curve, gyro readings now avoid switching sources mid-run, and steering gain was reduced after analyzing a jerky autonomous run. The collector saves CSV files into `code/logs/`, saves raw readable serial output when serial data arrives but no CSV is produced, and can decode XOR-3 hub output. A decoded debug file showed a hub `MemoryError` while dumping, so hub output is now streamed instead of building a large dump list in memory.
+
+## Session 2026-06-11 Fixes
+
+**Motor Pair Encoder Read Bug:**
+- Root cause: `motor_pair.pair()` + `motor_pair.move_tank()` broke individual motor encoder reads
+- Solution: Replaced with `motor.run(port, speed)` for each motor individually
+- Result: Distance feedback now works, proportional steering control can see robot movement
+
+**Motor Direction Mismatch:**
+- Root cause: RIGHT motor physically wired in opposite polarity, both had direction = 1, readings cancelled out
+- Symptom: Manual arc-to-left push showed distance oscillating near 0 instead of increasing
+- Solution: Changed `RIGHT_DRIVE_MOTOR_DIRECTION` from 1 to -1
+- Result: Distance calculation now sums correctly when both motors move forward

@@ -2,7 +2,7 @@
 
 ## Date
 
-2026-06-10
+2026-06-11 (Updated from 2026-06-10)
 
 ## Project
 
@@ -36,6 +36,8 @@ The desired console/CSV output is exactly:
 time,distance,gyro_angle
 ```
 
+For autonomous navigation, the robot follows a polynomial equation to trace a curved path based on drive distance.
+
 ## Original SuperPowered Findings
 
 The EV3/Pybricks code logs with `pybricks.tools.DataLog`.
@@ -54,44 +56,52 @@ Important details:
 
 ## Current SPIKE Design
 
-The current `code/hub/main.py` is a one-file hub upload.
+The current `code/hub/main.py` is a one-file hub upload (updated 2026-06-11).
 
 It records:
 
-- `time`
-- `distance`
-- `gyro_angle`
+- `time` (milliseconds)
+- `distance` (millimeters)
+- `gyro_angle` (degrees)
+
+Motor control (fixed in session 2026-06-11):
+- Previously used `motor_pair.pair()` + `motor_pair.move_tank()` which broke individual encoder reads
+- Now uses `motor.run(port, speed)` for each motor individually
+- This allows distance feedback to work correctly during autonomous navigation
 
 It uses:
 
 - `time.ticks_ms()` / `time.ticks_diff()` for milliseconds
-- drive motor encoders for estimated distance
+- drive motor encoders for estimated distance (individual motor reads)
 - hub yaw for gyro angle
-- `SAMPLE_MS = 1` for dense short-route logging
+- `SAMPLE_MS = 5` for dense short-route logging
 - `MAX_ROWS_PER_LOG = 8000`
 - stable button-release detection before arming the next button action
 
-The active program has a `ROBOT CONFIGURATION` section near the top. Default robot constants:
+The active program has a `ROBOT CONFIGURATION` section near the top. Default robot constants (updated 2026-06-11):
 
 ```python
 LEFT_DRIVE_MOTOR_PORT = port.B
 RIGHT_DRIVE_MOTOR_PORT = port.F
 LEFT_DRIVE_MOTOR_DIRECTION = 1
-RIGHT_DRIVE_MOTOR_DIRECTION = 1
+RIGHT_DRIVE_MOTOR_DIRECTION = -1  # Fixed: motors wired in opposite polarity
 AUTONOMOUS_START_SENSOR_PORT = port.D
 WHEEL_CIRCUMFERENCE_MM = 176
 ```
 
 Valid SPIKE Prime motor ports are `port.A` through `port.F`.
 
-There is no intentional recording time limit. The right button starts and stops
-recording. The code waits for a stable release after the start press so the
-same press is not reused as the stop press, but it does not ignore a later stop
-press based on elapsed time.
+Motor direction fix: RIGHT motor is physically wired backward, so `RIGHT_DRIVE_MOTOR_DIRECTION = -1` 
+compensates during distance calculation to ensure both encoders read positive when moving forward.
 
-The autonomous equation is treated as a relative heading curve. The polynomial
-value at distance `0` is subtracted so the autonomous run starts from target
-angle `0` after the gyro is reset.
+There is no intentional recording time limit. The right button starts and stops recording. The code waits for a stable release after the start press so the same press is not reused as the stop press, but it does not ignore a later stop press based on elapsed time.
+
+The autonomous navigation (updated 2026-06-11):
+- Now uses individual motor.run() control instead of motor_pair for accurate distance feedback
+- Follows polynomial curve: `-5.39 + 1.15x + -0.0102x² + -2.83E-04x³ + 1.12E-05x⁴ + -8.16E-08x⁵`
+- Uses proportional steering control: `AUTO_KP = 3`, `AUTO_MAX_CORRECTION = 120`
+- Gyro readings are consistent (uses tilt_angles, not angular velocity)
+- Robot should now move forward and follow the equation curve correctly
 
 ## Workflow
 
@@ -139,6 +149,7 @@ so reconnect/restart recovery still has a copy/paste path.
 
 ## Recent Debugging Context
 
+**Session 2026-06-10:**
 - The collector previously printed `info: parsed N possible log line(s) from serial data` without explaining why no CSV was saved.
 - `code/tools/collect_spike_logs.py` now saves readable raw serial output to `code/logs/raw_serial_readable_*.txt` whenever serial data is received.
 - If no CSV rows are saved from serial data, the collector now prints a warning and points to the raw file.
@@ -149,6 +160,16 @@ so reconnect/restart recovery still has a copy/paste path.
 - `robot_log_20260610_134858.csv` showed `gyro_angle` changing while `distance` stayed near `0`, and a `20 -> 1` degree gyro jump. This is poor training data for `gyro_angle = f(distance)`.
 - `GyroTracker` now uses `motion_sensor.tilt_angles()` consistently instead of switching between tilt-angle yaw and integrated angular velocity mid-run.
 - Autonomous steering was softened from `AUTO_KP = 6` / `AUTO_MAX_CORRECTION = 160` to `AUTO_KP = 2` / `AUTO_MAX_CORRECTION = 100`.
+
+**Session 2026-06-11 Analysis & Fixes:**
+- Analyzed robot logs: distance was always ≈0 even during clear motion. Gyro changed but distance feedback was broken.
+- **Root Cause 1 - Motor Pair Encoder Bug:** Code called `motor_pair.pair()` then `motor_pair.move_tank()`, but then tried to read `motor.relative_position()` on individual motors. Motor pair APIs interfere with individual motor position reads, returning stale/zero data.
+  - **Fix:** Replaced with `motor.run(port, speed)` for individual motor control. Removed `pair_drive_motors()` call.
+  - **Result:** Individual encoder reads now work. Distance feedback restored to proportional steering control.
+- **Root Cause 2 - Motor Direction Mismatch:** Manual arc-to-left push showed distance oscillating -1/0 instead of increasing smoothly. Both motors moved, gyro changed, but distance stayed wrong.
+  - **Analysis:** RIGHT motor physically wired in opposite polarity to LEFT. Both had direction=1, so readings cancelled: `(+left + -right)/2 ≈ 0`.
+  - **Fix:** Changed `RIGHT_DRIVE_MOTOR_DIRECTION` from `1` to `-1`.
+  - **Result:** Distance calculation now works: `(+left + +right)/2 = true forward distance`.
 
 ## Merge Context
 
@@ -165,3 +186,34 @@ The local branch had the simple one-run workflow. The remote branch had better h
 ## Git State Note
 
 The user prefers to commit changes manually. Do not commit unless explicitly asked.
+
+## Code Changes Session 2026-06-11
+
+**File Modified:** `code/hub/main.py`
+
+**Changes:**
+1. Replaced `pair_drive_motors()` function with new `drive_motors(left_speed, right_speed)` function
+   - Old: Used `motor_pair.pair()` and `motor_pair.move_tank()`
+   - New: Uses `motor.run(port, speed)` for each motor individually
+   - Motor direction multipliers now applied inside `drive_motors()` function
+
+2. Updated `stop_drive_motors()` function
+   - Old: Used `motor_pair.stop(DRIVE_PAIR)`
+   - New: Uses `motor.stop(port)` for each motor individually
+
+3. Updated `apply_proportional_drive()` function
+   - Old: Applied direction multipliers, then called `motor_pair.move_tank()`
+   - New: Calls `drive_motors(left_speed, right_speed)` which handles direction multipliers
+
+4. Removed `pair_drive_motors()` call from `run_autonomous_navigation()`
+   - No longer needed since individual motors are controlled directly
+
+5. Changed motor direction configuration
+   - `RIGHT_DRIVE_MOTOR_DIRECTION` changed from `1` to `-1`
+   - Compensates for opposite physical wiring of the drive motors
+
+## Expected Behavior After Upload
+
+1. **Manual Datalogging:** Push robot forward → distance increases smoothly (not 0/-1 bouncing)
+2. **Arc Movement:** Push in arc → distance increases + gyro changes show curved path
+3. **Autonomous:** Show red → robot moves forward following equation curve (not erratic)
