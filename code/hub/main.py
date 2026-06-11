@@ -110,14 +110,16 @@ MAX_ROWS_PER_LOG = 8000
 LOG_FILE = "robot_log.csv"
 
 # Autonomous navigation settings.
-# These values follow code/logs/equation.txt:
-#   0.25 + 0.579x + 0.0341x^2 + -1.33E-03x^3 + 2.34E-05x^4 + -1.51E-07x^5
+# These values follow code/logs/equation2.txt:
+#   -5.39 + 1.15x + -0.0102x^2 + -2.83E-04x^3 + 1.12E-05x^4 + -8.16E-08x^5
 # x is distance in millimeters.
-AUTO_TARGET_DISTANCE_MM = 62
-AUTO_SAMPLE_MS = 10
-AUTO_BASE_SPEED = 220
-AUTO_KP = 2
-AUTO_MAX_CORRECTION = 100
+AUTO_TARGET_DISTANCE_MM = 85
+AUTO_TREND_MIN_DISTANCE_MM = 0
+AUTO_TREND_MAX_DISTANCE_MM = 85
+AUTO_SAMPLE_MS = 5
+AUTO_BASE_SPEED = 160
+AUTO_KP = 3
+AUTO_MAX_CORRECTION = 120
 AUTO_MAX_SPEED = 400
 AUTO_STEERING_DIRECTION = 1
 
@@ -355,13 +357,17 @@ def log_drive_row(log, start_ms, left_tracker, right_tracker, gyro_tracker):
 
 def raw_target_angle_for_distance(distance_mm):
     x = distance_mm
+    if x < AUTO_TREND_MIN_DISTANCE_MM:
+        x = AUTO_TREND_MIN_DISTANCE_MM
+    elif x > AUTO_TREND_MAX_DISTANCE_MM:
+        x = AUTO_TREND_MAX_DISTANCE_MM
     return (
-        0.25
-        + (0.579 * x)
-        + (0.0341 * x * x)
-        + (-0.00133 * x * x * x)
-        + (0.0000234 * x * x * x * x)
-        + (-0.000000151 * x * x * x * x * x)
+        -5.39
+        + (1.15 * x)
+        + (-0.0102 * x * x)
+        + (-0.000283 * x * x * x)
+        + (0.0000112 * x * x * x * x)
+        + (-0.0000000816 * x * x * x * x * x)
     )
 
 

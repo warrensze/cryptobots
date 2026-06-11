@@ -41,7 +41,7 @@ Button controls:
 - right button again: stop recording
 - left button: dump the saved run so the collector can save a CSV
 - both buttons: show whether a saved run exists
-- red seen by the color sensor on port `D`: run the autonomous path from `code/logs/equation.txt`
+- red seen by the color sensor on port `D`: run the autonomous path from `code/logs/equation2.txt`
 
 Light matrix codes:
 
@@ -68,10 +68,10 @@ Light matrix codes:
 ## Autonomous Navigation
 
 `hub/main.py` includes a proportional controller that follows the polynomial in
-`code/logs/equation.txt`:
+`code/logs/equation2.txt`:
 
 ```text
-0.25 + 0.579x + 0.0341x^2 + -1.33E-03x^3 + 2.34E-05x^4 + -1.51E-07x^5
+-5.39 + 1.15x + -0.0102x^2 + -2.83E-04x^3 + 1.12E-05x^4 + -8.16E-08x^5
 ```
 
 For each loop, the robot:
@@ -93,10 +93,10 @@ time,distance,gyro_angle,target_angle,error,correction
 Tune these values near the top of `hub/main.py`:
 
 ```python
-AUTO_TARGET_DISTANCE_MM = 62
-AUTO_BASE_SPEED = 220
-AUTO_KP = 2
-AUTO_MAX_CORRECTION = 100
+AUTO_TARGET_DISTANCE_MM = 85
+AUTO_BASE_SPEED = 160
+AUTO_KP = 3
+AUTO_MAX_CORRECTION = 120
 AUTO_STEERING_DIRECTION = 1
 ```
 
