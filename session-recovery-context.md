@@ -212,6 +212,18 @@ The user prefers to commit changes manually. Do not commit unless explicitly ask
    - `RIGHT_DRIVE_MOTOR_DIRECTION` changed from `1` to `-1`
    - Compensates for opposite physical wiring of the drive motors
 
+## Session 2026-06-12 — Autonomous Navigation Precision Fix
+
+**Bug Found:** `angle_error()` (line 706) was defined but never called. The `run_autonomous_navigation()` function computed `error = target_angle - current_angle` directly without wrap-around handling. When the hub gyro wraps at ±180° (which happens around distance ≈ 182 mm during a U-turn), the raw subtraction produces a massive error (~-311°) that saturates the correction limit and steers the robot the wrong direction.
+
+**Fix Applied:**
+- Changed line 864 from `error = target_angle - current_angle` to `error = angle_error(target_angle, current_angle)` — wraps error to [-180, 180] so the proportional controller always takes the shortest angular path.
+- Added clarifying docstring to `raw_target_angle_for_distance()` noting x = distance_mm.
+- Added comments distinguishing the _trendline_raw copy (speed ramping, x=percent) from `raw_target_angle_for_distance` (navigation, x=mm).
+
+**Why this matters for exact polynomial tracking:**
+Without wrap handling, when the robot's actual heading exceeds ±180°, the error term flips sign and the robot steers away from the target instead of toward it. This means the distance-angle trajectory diverges from the polynomial curve exactly when the robot needs the most guidance (the middle-to-end of a U-turn).
+
 ## Expected Behavior After Upload
 
 1. **Manual Datalogging:** Push robot forward → distance increases smoothly (not 0/-1 bouncing)

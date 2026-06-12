@@ -112,11 +112,11 @@ LOG_FILE = "robot_log.csv"
 
 # Autonomous navigation settings.
 # These values follow code/logs/equation2.txt:
-#   -5.39 + 1.15x + -0.0102x^2 + -2.83E-04x^3 + 1.12E-05x^4 + -8.16E-08x^5
+#DO NOT USE   -5.39 + 1.15x + -0.0102x^2 + -2.83E-04x^3 + 1.12E-05x^4 + -8.16E-08x^5
 # x is distance in millimeters.
-AUTO_TARGET_DISTANCE_MM = 85
+AUTO_TARGET_DISTANCE_MM = 300
 AUTO_TREND_MIN_DISTANCE_MM = 0
-AUTO_TREND_MAX_DISTANCE_MM = 85
+AUTO_TREND_MAX_DISTANCE_MM = 300
 AUTO_SAMPLE_MS = 5
 AUTO_BASE_SPEED = 160
 AUTO_KP = 3
@@ -127,9 +127,335 @@ AUTO_STEERING_DIRECTION = 1
 BUTTON_RELEASE_CHECK_MS = 20
 BUTTON_RELEASE_STABLE_READS = 3
 GYRO_RESET_WAIT_MS = 100
-#-21.9 + -0.609x + -6.6E-04x^2
+#USE THIS INSTEAD -21.9 + -0.609x + -6.6E-04x^2
 #5th degree#f(x) = c0 + c1*x + c2*x^2 + c3*x^3 + c4*x^4 + c5*x^5
 #2nd degree#c0 + c1*x + c2*x^2
+
+# =============================
+# TRENDLINE EQUATION COPY (for speed ramping in pid_rampdrive / run_pid_straight)
+# =============================
+# y = -21.9 + -0.609x + -6.6E-04x^2  where x = percent of distance (0-100)
+# This is a REUSE of equation4.txt coefficients for speed ramping only.
+# The autonomous navigation curve uses its own copy at raw_target_angle_for_distance
+# where x = distance_mm directly.
+
+def _trendline_raw(x):
+    return -21.9 + -0.609 * x + -6.6E-04 * x * x
+
+_TRENDLINE_Y0 = _trendline_raw(0.0)
+_TRENDLINE_Y100 = _trendline_raw(100.0)
+_TRENDLINE_YRANGE = _TRENDLINE_Y100 - _TRENDLINE_Y0
+
+def trendline_speed(progress, min_speed, max_speed):
+    raw = _trendline_raw(progress * 100.0)
+    if _TRENDLINE_YRANGE == 0:
+        return (min_speed + max_speed) // 2
+    ratio = (raw - _TRENDLINE_Y0) / _TRENDLINE_YRANGE
+    return int(min_speed + ratio * (max_speed - min_speed))
+
+
+def trendline_ramp(progress, min_speed, max_speed, ramp_up=0.2, ramp_down=0.3):
+    if progress < ramp_up:
+        p = progress / ramp_up
+        return trendline_speed(p, min_speed, max_speed)
+    elif progress > 1.0 - ramp_down:
+        p = (progress - (1.0 - ramp_down)) / ramp_down
+        return trendline_speed(1.0 - p, min_speed, max_speed)
+    else:
+        return max_speed
+
+
+# =============================
+# DRIVE HELPERS (direction-safe)
+# =============================
+# RIGHT_DRIVE_MOTOR_DIRECTION = -1 means the right motor is mechanically reversed.
+# All drive functions must apply direction multipliers to individual motor.run() calls.
+
+G_LOOP_MS = 10
+G_RESET_WAIT_MS = 100
+MAX_STEERING = 60
+
+
+def _deg_per_cm():
+    return 360.0 / (WHEEL_CIRCUMFERENCE_MM / 10.0)
+
+
+def _drive_tank(left_speed, right_speed):
+    motor.run(LEFT_DRIVE_MOTOR_PORT, left_speed * LEFT_DRIVE_MOTOR_DIRECTION)
+    motor.run(RIGHT_DRIVE_MOTOR_PORT, right_speed * RIGHT_DRIVE_MOTOR_DIRECTION)
+
+
+def _drive_steering(base_vel, steering):
+    steer_factor = limit(steering, -MAX_STEERING, MAX_STEERING)
+    ratio = steer_factor / MAX_STEERING
+    left_v = int(base_vel * (1.0 + ratio))
+    right_v = int(base_vel * (1.0 - ratio))
+    left_v = limit(left_v, -abs(base_vel), abs(base_vel))
+    right_v = limit(right_v, -abs(base_vel), abs(base_vel))
+    _drive_tank(left_v, right_v)
+
+
+def _drive_stop():
+    motor.stop(LEFT_DRIVE_MOTOR_PORT, motor.BRAKE)
+    motor.stop(RIGHT_DRIVE_MOTOR_PORT, motor.BRAKE)
+
+
+# =============================
+# PID GYRO-STRAIGHT DRIVE
+# =============================
+
+async def pid_drive(velocity, distance_cm, kp=2.0, ki=0.0, kd=0.0, feedforward=0, stop=True):
+    configure_motion_sensor()
+    motion_sensor.reset_yaw(0)
+    await runloop.sleep_ms(G_RESET_WAIT_MS)
+    motor.reset_relative_position(LEFT_DRIVE_MOTOR_PORT, 0)
+    motor.reset_relative_position(RIGHT_DRIVE_MOTOR_PORT, 0)
+
+    target_deg = int(abs(distance_cm) * _deg_per_cm())
+    abs_vel = abs(velocity)
+    drive_dir = 1 if velocity > 0 else -1
+
+    error_last = 0.0
+    error_integral = 0.0
+
+    while True:
+        left_pos = read_relative_position(LEFT_DRIVE_MOTOR_PORT)
+        right_pos = read_relative_position(RIGHT_DRIVE_MOTOR_PORT)
+        if left_pos is None or right_pos is None:
+            break
+        avg_pos = (abs(left_pos) + abs(right_pos)) // 2
+        if avg_pos >= target_deg:
+            break
+
+        yaw_deg = motion_sensor.tilt_angles()[0] // 10
+        error = yaw_deg
+        error_derivative = error - error_last
+        error_last = error
+        error_integral = error_integral + error
+
+        steering = error * kp + error_integral * ki + error_derivative * kd + feedforward
+        steering = int(limit(steering, -MAX_STEERING, MAX_STEERING))
+        _drive_steering(drive_dir * abs_vel, steering)
+        await runloop.sleep_ms(G_LOOP_MS)
+
+    if stop:
+        _drive_stop()
+
+
+async def pid_rampdrive(velocity, distance_cm, kp=2.0, ki=0.0, kd=0.0, feedforward=0,
+                        ramp_up=0.2, ramp_down=0.3, min_vel=80, stop=True):
+    configure_motion_sensor()
+    motion_sensor.reset_yaw(0)
+    await runloop.sleep_ms(G_RESET_WAIT_MS)
+    motor.reset_relative_position(LEFT_DRIVE_MOTOR_PORT, 0)
+    motor.reset_relative_position(RIGHT_DRIVE_MOTOR_PORT, 0)
+
+    target_deg = int(abs(distance_cm) * _deg_per_cm())
+    abs_vel = abs(velocity)
+    drive_dir = 1 if velocity > 0 else -1
+
+    error_last = 0.0
+    error_integral = 0.0
+
+    while True:
+        left_pos = read_relative_position(LEFT_DRIVE_MOTOR_PORT)
+        right_pos = read_relative_position(RIGHT_DRIVE_MOTOR_PORT)
+        if left_pos is None or right_pos is None:
+            break
+        avg_pos = (abs(left_pos) + abs(right_pos)) // 2
+        if avg_pos >= target_deg:
+            break
+
+        progress = avg_pos / target_deg
+        current_vel = trendline_ramp(progress, min_vel, abs_vel, ramp_up, ramp_down)
+
+        yaw_deg = motion_sensor.tilt_angles()[0] // 10
+        error = yaw_deg
+        error_derivative = error - error_last
+        error_last = error
+        error_integral = error_integral + error
+
+        steering = error * kp + error_integral * ki + error_derivative * kd + feedforward
+        steering = int(limit(steering, -MAX_STEERING, MAX_STEERING))
+        _drive_steering(drive_dir * int(current_vel), steering)
+        await runloop.sleep_ms(G_LOOP_MS)
+
+    if stop:
+        _drive_stop()
+
+
+# =============================
+# GYRO TURNS
+# =============================
+
+async def gyro_turn(turn_angle, turn_rate=250, spinturn=True, precision=None, stop=True):
+    configure_motion_sensor()
+    motion_sensor.reset_yaw(0)
+    await runloop.sleep_ms(G_RESET_WAIT_MS)
+
+    if precision is None:
+        precision = max(1, abs(turn_rate) // 30)
+        if precision > 12:
+            precision = 12
+
+    turn_abs = abs(turn_angle)
+    turn_dir = 1 if turn_angle > 0 else -1
+    target_yaw = turn_dir * turn_abs * 10
+    max_ms = max(1500, turn_abs * 80)
+
+    if spinturn:
+        left_dir = -turn_dir
+        right_dir = turn_dir
+    else:
+        if turn_angle > 0:
+            left_dir = 0
+            right_dir = 1
+        else:
+            left_dir = 1
+            right_dir = 0
+
+    abs_rate = abs(turn_rate)
+    elapsed_ms = 0
+
+    while elapsed_ms < max_ms:
+        current_yaw = motion_sensor.tilt_angles()[0]
+        if (current_yaw - target_yaw) * turn_dir >= -precision:
+            break
+
+        _drive_tank(int(left_dir * abs_rate), int(right_dir * abs_rate))
+        await runloop.sleep_ms(G_LOOP_MS)
+        elapsed_ms += G_LOOP_MS
+
+    if elapsed_ms >= max_ms:
+        print("gyro_turn: timed out at yaw", motion_sensor.tilt_angles()[0])
+
+    if stop:
+        _drive_stop()
+        await runloop.sleep_ms(50)
+
+
+async def gyro_ramp_turn(turn_angle, turn_rate=250, spinturn=True,
+                         ramp_up=0.2, ramp_down=0.3, precision=None, stop=True):
+    configure_motion_sensor()
+    motion_sensor.reset_yaw(0)
+    await runloop.sleep_ms(G_RESET_WAIT_MS)
+
+    if precision is None:
+        precision = max(1, abs(turn_rate) // 30)
+        if precision > 12:
+            precision = 12
+
+    turn_abs = abs(turn_angle)
+    turn_dir = 1 if turn_angle > 0 else -1
+    target_yaw = turn_dir * turn_abs * 10
+    max_ms = max(1500, turn_abs * 80)
+
+    if spinturn:
+        left_dir = -turn_dir
+        right_dir = turn_dir
+    else:
+        if turn_angle > 0:
+            left_dir = 0
+            right_dir = 1
+        else:
+            left_dir = 1
+            right_dir = 0
+
+    abs_rate = abs(turn_rate)
+    min_rate = 50
+    elapsed_ms = 0
+
+    while elapsed_ms < max_ms:
+        current_yaw = motion_sensor.tilt_angles()[0]
+        if (current_yaw - target_yaw) * turn_dir >= -precision:
+            break
+
+        angle_turned_abs = abs(current_yaw)
+        angle_progress = angle_turned_abs / (turn_abs * 10) if (turn_abs * 10) > 0 else 1.0
+        if angle_progress > 1.0:
+            angle_progress = 1.0
+
+        current_rate = trendline_ramp(angle_progress, min_rate, abs_rate, ramp_up, ramp_down)
+
+        _drive_tank(int(left_dir * current_rate), int(right_dir * current_rate))
+        await runloop.sleep_ms(G_LOOP_MS)
+        elapsed_ms += G_LOOP_MS
+
+    if elapsed_ms >= max_ms:
+        print("gyro_ramp_turn: timed out at yaw", motion_sensor.tilt_angles()[0])
+
+    if stop:
+        _drive_stop()
+        await runloop.sleep_ms(50)
+
+
+async def gyro_ramp_turn_correction(turn_angle, turn_rate=250, spinturn=True,
+                                    ramp_up=0.2, ramp_down=0.3, debug=False):
+    await gyro_ramp_turn(turn_angle, turn_rate, spinturn, ramp_up, ramp_down, stop=True)
+    await runloop.sleep_ms(200)
+    angle_end1 = motion_sensor.tilt_angles()[0] // 10
+
+    angle_abs = abs(turn_angle)
+    turn_dir = 1 if turn_angle > 0 else -1
+    target = turn_dir * angle_abs
+    error1 = angle_end1 - target
+
+    if debug:
+        print("coarse angle:", angle_end1, "target:", target, "error1:", error1)
+
+    await gyro_turn(-error1, turn_rate=50, spinturn=True, stop=True)
+    await runloop.sleep_ms(200)
+    angle_end2 = motion_sensor.tilt_angles()[0] // 10
+    error2 = angle_end2 - target
+
+    if debug:
+        print("fine angle:", angle_end2, "error2:", error2)
+
+    return error2
+
+
+# =============================
+# DRIVE HELPERS (distance / time based)
+# =============================
+
+async def drive_straight(velocity, distance_cm, stop=True):
+    target_deg = int(abs(distance_cm) * _deg_per_cm())
+    abs_vel = abs(velocity)
+    drive_dir = 1 if velocity > 0 else -1
+
+    motor.reset_relative_position(LEFT_DRIVE_MOTOR_PORT, 0)
+    motor.reset_relative_position(RIGHT_DRIVE_MOTOR_PORT, 0)
+
+    while True:
+        left_pos = read_relative_position(LEFT_DRIVE_MOTOR_PORT)
+        right_pos = read_relative_position(RIGHT_DRIVE_MOTOR_PORT)
+        if left_pos is None or right_pos is None:
+            break
+        avg_pos = (abs(left_pos) + abs(right_pos)) // 2
+        if avg_pos >= target_deg:
+            break
+
+        _drive_tank(drive_dir * abs_vel, drive_dir * abs_vel)
+        await runloop.sleep_ms(G_LOOP_MS)
+
+    if stop:
+        _drive_stop()
+
+
+async def drive_time(velocity, time_ms, stop=True):
+    abs_vel = abs(velocity)
+    drive_dir = 1 if velocity > 0 else -1
+    elapsed = 0
+
+    while elapsed < time_ms:
+        _drive_tank(drive_dir * abs_vel, drive_dir * abs_vel)
+        await runloop.sleep_ms(G_LOOP_MS)
+        elapsed += G_LOOP_MS
+
+    if stop:
+        _drive_stop()
+
+
 saved_log = None
 
 
@@ -359,6 +685,7 @@ def log_drive_row(log, start_ms, left_tracker, right_tracker, gyro_tracker):
 
 
 def raw_target_angle_for_distance(distance_mm):
+    """equation4.txt: y = -21.9 + -0.609x + -6.6E-04x^2, x = distance_mm."""
     x = distance_mm
     if x < AUTO_TREND_MIN_DISTANCE_MM:
         x = AUTO_TREND_MIN_DISTANCE_MM
@@ -367,7 +694,7 @@ def raw_target_angle_for_distance(distance_mm):
     return (
         -21.9
         + (-0.609 * x)
-        + (-0.0066 * x * x)
+        + (-6.6E-04 * x * x)
     )
 
 AUTO_TARGET_ANGLE_OFFSET = raw_target_angle_for_distance(0)
@@ -512,30 +839,118 @@ async def run_autonomous_navigation(name):
     gyro_tracker = GyroTracker()
     start = time.ticks_ms()
 
+    # Local tuning for U-turn.
+    # NOTE: MotorTracker.read_degrees() applies RIGHT_DRIVE_MOTOR_DIRECTION = -1,
+    # which makes right_deg negative and cancels distance in estimate_distance_mm.
+    # So we read raw relative positions directly for distance.
+    base_speed = 50
+    kp = 5
+    max_correction = 45
+    max_speed = 100
+    target_distance_mm = AUTO_TARGET_DISTANCE_MM
+    speed = -base_speed
+
     try:
         while True:
-            distance, current_angle = read_drive_state(
-                left_tracker,
-                right_tracker,
-                gyro_tracker,
-            )
-            target_angle = target_angle_for_distance(distance)
+            left_rel = read_relative_position(LEFT_DRIVE_MOTOR_PORT)
+            right_rel = read_relative_position(RIGHT_DRIVE_MOTOR_PORT)
+            if left_rel is None or right_rel is None:
+                break
+
+            avg_deg = (abs(left_rel) + abs(right_rel)) // 2
+            distance_mm = (avg_deg * WHEEL_CIRCUMFERENCE_MM) // 360
+            current_angle = gyro_tracker.read_degrees()
+
+            if distance_mm >= target_distance_mm:
+                break
+
+            target_angle = target_angle_for_distance(distance_mm)
             error = angle_error(target_angle, current_angle)
-            correction = apply_proportional_drive(error)
+            correction = int(limit(
+                error * kp * AUTO_STEERING_DIRECTION,
+                -max_correction,
+                max_correction,
+            ))
+
+            left_speed = int(limit(speed - correction, -max_speed, max_speed))
+            right_speed = int(limit(speed + correction, -max_speed, max_speed))
+            drive_motors(left_speed, right_speed)
+
             log_navigation_row(
-                log,
-                start,
-                distance,
-                current_angle,
-                target_angle,
-                error,
-                correction,
+                log, start, distance_mm, current_angle,
+                target_angle, error, correction,
             )
 
-            if reached_target_distance(distance) or left_pressed() or right_pressed():
+            if left_pressed() or right_pressed():
                 break
 
             await runloop.sleep_ms(AUTO_SAMPLE_MS)
+    finally:
+        stop_drive_motors()
+
+    await wait_for_buttons_released()
+    return log
+
+
+async def run_pid_straight(name, velocity, distance_cm, kp=2.0, ki=0.0, kd=0.0,
+                           min_vel=80, stop=True):
+    await wait_for_buttons_released()
+    await light_matrix.write("P")
+
+    await reset_sensors()
+    log = make_navigation_log(name)
+    left_tracker = MotorTracker(LEFT_DRIVE_MOTOR_PORT, LEFT_DRIVE_MOTOR_DIRECTION)
+    right_tracker = MotorTracker(RIGHT_DRIVE_MOTOR_PORT, RIGHT_DRIVE_MOTOR_DIRECTION)
+    gyro_tracker = GyroTracker()
+    start = time.ticks_ms()
+
+    target_deg = int(abs(distance_cm) * _deg_per_cm())
+    abs_vel = abs(velocity)
+    drive_dir = 1 if velocity > 0 else -1
+
+    error_last = 0.0
+    error_integral = 0.0
+
+    try:
+        while True:
+            distance, current_angle = read_drive_state(
+                left_tracker, right_tracker, gyro_tracker,
+            )
+
+            left_pos = read_relative_position(LEFT_DRIVE_MOTOR_PORT)
+            right_pos = read_relative_position(RIGHT_DRIVE_MOTOR_PORT)
+            avg_pos = 0
+            if left_pos is not None and right_pos is not None:
+                avg_pos = (abs(left_pos) + abs(right_pos)) // 2
+
+            if avg_pos >= target_deg:
+                break
+
+            progress = avg_pos / target_deg if target_deg > 0 else 1.0
+            current_vel = trendline_ramp(progress, min_vel, abs_vel)
+
+            error = current_angle
+            error_derivative = error - error_last
+            error_last = error
+            error_integral = error_integral + error
+
+            steering = error * kp + error_integral * ki + error_derivative * kd
+            steering = int(limit(steering, -MAX_STEERING, MAX_STEERING))
+
+            _drive_steering(drive_dir * int(current_vel), steering)
+
+            log_navigation_row(
+                log, start, distance, current_angle,
+                0, error, steering,
+            )
+
+            if left_pressed() or right_pressed():
+                break
+
+            await runloop.sleep_ms(AUTO_SAMPLE_MS)
+
+        if stop:
+            _drive_stop()
     finally:
         stop_drive_motors()
 
