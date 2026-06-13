@@ -96,12 +96,12 @@ compensates during distance calculation to ensure both encoders read positive wh
 
 There is no intentional recording time limit. The right button starts and stops recording. The code waits for a stable release after the start press so the same press is not reused as the stop press, but it does not ignore a later stop press based on elapsed time.
 
-The autonomous navigation (updated 2026-06-11):
+The autonomous navigation (updated 2026-06-12):
 - Now uses individual motor.run() control instead of motor_pair for accurate distance feedback
-- Follows polynomial curve: `-5.39 + 1.15x + -0.0102x² + -2.83E-04x³ + 1.12E-05x⁴ + -8.16E-08x⁵`
+- Uses equation5.txt: `7.57 + 0.755x + 4.26E-03x² + 5.82E-06x³ + 2.25E-09x⁴` where x = distance_mm
 - Uses proportional steering control: `AUTO_KP = 3`, `AUTO_MAX_CORRECTION = 120`
 - Gyro readings are consistent (uses tilt_angles, not angular velocity)
-- Robot should now move forward and follow the equation curve correctly
+- Angle error wraps through `angle_error()` to handle ±180° gyro crossing
 
 ## Workflow
 
@@ -224,8 +224,23 @@ The user prefers to commit changes manually. Do not commit unless explicitly ask
 **Why this matters for exact polynomial tracking:**
 Without wrap handling, when the robot's actual heading exceeds ±180°, the error term flips sign and the robot steers away from the target instead of toward it. This means the distance-angle trajectory diverges from the polynomial curve exactly when the robot needs the most guidance (the middle-to-end of a U-turn).
 
+## Session 2026-06-12 — Autonomous Navigation Steering & Direction Fix
+
+**Bug 1 — Backward Speed:**
+`run_autonomous_navigation()` used `speed = -base_speed`, causing the robot to move backward. The polynomial equation (`target_angle_for_distance`) maps forward distance → target gyro angle, so forward movement is required. A backward-moving robot would traverse the path in reverse, producing incorrect position→angle mapping.
+
+**Fix:** Changed `speed = -base_speed` to `speed = base_speed` (line 878).
+
+**Bug 2 — Steering Direction Inverted:**
+The correction was applied as `left = speed - correction`, `right = speed + correction`. A positive correction (need to turn right) would make left slower and right faster, producing a LEFT turn — exactly opposite of what was needed. Compare with the working `apply_proportional_drive()` (line 788) which correctly uses `left = base + correction`, `right = base - correction`.
+
+**Fix:** Changed to `left = speed + correction`, `right = speed - correction` (lines 902-903), matching the `apply_proportional_drive` convention where positive correction → left faster → right turn.
+
+**Why `angle_error()` works correctly with the wrapped gyro:**
+The polynomial produces unbounded cumulative target angles (~792° at 300mm), while `GyroTracker.read_degrees()` returns a raw ±180° wrapped yaw. `angle_error()` correctly finds the shortest path by subtracting and wrapping to [-180,180], which naturally accounts for the robot's multi-revolution turns.
+
 ## Expected Behavior After Upload
 
 1. **Manual Datalogging:** Push robot forward → distance increases smoothly (not 0/-1 bouncing)
 2. **Arc Movement:** Push in arc → distance increases + gyro changes show curved path
-3. **Autonomous:** Show red → robot moves forward following equation curve (not erratic)
+3. **Autonomous:** Show red → robot moves **forward** following equation curve (not erratic, not backward)

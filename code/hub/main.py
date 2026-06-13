@@ -111,9 +111,8 @@ MAX_ROWS_PER_LOG = 8000
 LOG_FILE = "robot_log.csv"
 
 # Autonomous navigation settings.
-# These values follow code/logs/equation2.txt:
-#DO NOT USE   -5.39 + 1.15x + -0.0102x^2 + -2.83E-04x^3 + 1.12E-05x^4 + -8.16E-08x^5
-# x is distance in millimeters.
+# Uses equation5.txt: y = 7.57 + 0.755x + 4.26E-03x^2 + 5.82E-06x^3 + 2.25E-09x^4
+# where x = distance_mm (0-300).
 AUTO_TARGET_DISTANCE_MM = 300
 AUTO_TREND_MIN_DISTANCE_MM = 0
 AUTO_TREND_MAX_DISTANCE_MM = 300
@@ -127,20 +126,23 @@ AUTO_STEERING_DIRECTION = 1
 BUTTON_RELEASE_CHECK_MS = 20
 BUTTON_RELEASE_STABLE_READS = 3
 GYRO_RESET_WAIT_MS = 100
-#USE THIS INSTEAD -21.9 + -0.609x + -6.6E-04x^2
-#5th degree#f(x) = c0 + c1*x + c2*x^2 + c3*x^3 + c4*x^4 + c5*x^5
-#2nd degree#c0 + c1*x + c2*x^2
 
 # =============================
 # TRENDLINE EQUATION COPY (for speed ramping in pid_rampdrive / run_pid_straight)
 # =============================
-# y = -21.9 + -0.609x + -6.6E-04x^2  where x = percent of distance (0-100)
-# This is a REUSE of equation4.txt coefficients for speed ramping only.
+# y = 7.57 + 0.755x + 4.26E-03x^2 + 5.82E-06x^3 + 2.25E-09x^4  where x = percent (0-100)
+# This is a REUSE of equation5.txt coefficients for speed ramping only.
 # The autonomous navigation curve uses its own copy at raw_target_angle_for_distance
 # where x = distance_mm directly.
 
 def _trendline_raw(x):
-    return -21.9 + -0.609 * x + -6.6E-04 * x * x
+    return (
+        7.57
+        + (0.755 * x)
+        + (4.26E-03 * x * x)
+        + (5.82E-06 * x * x * x)
+        + (2.25E-09 * x * x * x * x)
+    )
 
 _TRENDLINE_Y0 = _trendline_raw(0.0)
 _TRENDLINE_Y100 = _trendline_raw(100.0)
@@ -625,6 +627,33 @@ class MotorTracker:
         return relative * self.direction
 
 
+class UnwrappedYawTracker:
+    """Tracks unwrapped yaw by detecting ±180° wraps in tilt_angles().
+    This is critical for autonomous path following when total heading change > 180°."""
+
+    def __init__(self):
+        self.raw_ddeg = 0
+        self.accumulated_deg = 0.0
+
+    def reset(self):
+        configure_motion_sensor()
+        motion_sensor.reset_yaw(0)
+        wait_for_gyro_settle()
+        self.raw_ddeg = motion_sensor.tilt_angles()[0]
+        self.accumulated_deg = 0.0
+
+    def read_degrees(self):
+        new_ddeg = motion_sensor.tilt_angles()[0]
+        delta_ddeg = new_ddeg - self.raw_ddeg
+        if delta_ddeg > 1800:
+            delta_ddeg -= 3600
+        elif delta_ddeg < -1800:
+            delta_ddeg += 3600
+        self.accumulated_deg += delta_ddeg / 10.0
+        self.raw_ddeg = new_ddeg
+        return round_to_int(self.accumulated_deg)
+
+
 class GyroTracker:
     def __init__(self):
         self.last_ms = time.ticks_ms()
@@ -685,16 +714,18 @@ def log_drive_row(log, start_ms, left_tracker, right_tracker, gyro_tracker):
 
 
 def raw_target_angle_for_distance(distance_mm):
-    """equation4.txt: y = -21.9 + -0.609x + -6.6E-04x^2, x = distance_mm."""
+    """equation5.txt: y = 7.57 + 0.755x + 4.26E-03x^2 + 5.82E-06x^3 + 2.25E-09x^4, x = distance_mm."""
     x = distance_mm
     if x < AUTO_TREND_MIN_DISTANCE_MM:
         x = AUTO_TREND_MIN_DISTANCE_MM
     elif x > AUTO_TREND_MAX_DISTANCE_MM:
         x = AUTO_TREND_MAX_DISTANCE_MM
     return (
-        -21.9
-        + (-0.609 * x)
-        + (-6.6E-04 * x * x)
+        7.57
+        + (0.755 * x)
+        + (4.26E-03 * x * x)
+        + (5.82E-06 * x * x * x)
+        + (2.25E-09 * x * x * x * x)
     )
 
 AUTO_TARGET_ANGLE_OFFSET = raw_target_angle_for_distance(0)
@@ -839,16 +870,12 @@ async def run_autonomous_navigation(name):
     gyro_tracker = GyroTracker()
     start = time.ticks_ms()
 
-    # Local tuning for U-turn.
-    # NOTE: MotorTracker.read_degrees() applies RIGHT_DRIVE_MOTOR_DIRECTION = -1,
-    # which makes right_deg negative and cancels distance in estimate_distance_mm.
-    # So we read raw relative positions directly for distance.
     base_speed = 50
     kp = 5
     max_correction = 45
     max_speed = 100
     target_distance_mm = AUTO_TARGET_DISTANCE_MM
-    speed = -base_speed
+    speed = base_speed
 
     try:
         while True:
@@ -872,8 +899,8 @@ async def run_autonomous_navigation(name):
                 max_correction,
             ))
 
-            left_speed = int(limit(speed - correction, -max_speed, max_speed))
-            right_speed = int(limit(speed + correction, -max_speed, max_speed))
+            left_speed = int(limit(speed + correction, -max_speed, max_speed))
+            right_speed = int(limit(speed - correction, -max_speed, max_speed))
             drive_motors(left_speed, right_speed)
 
             log_navigation_row(
