@@ -5,8 +5,8 @@ from pybricks.robotics import DriveBase
 from pybricks.tools import wait
 
 hub = PrimeHub()
-left_motor = Motor(Port.A)
-right_motor = Motor(Port.B)
+left_motor = Motor(Port.B)
+right_motor = Motor(Port.F)
 robot = DriveBase(left_motor, right_motor, wheel_diameter=56, axle_track=114)
 
 left_motor.reset_angle(0)
@@ -21,7 +21,7 @@ try:
         x = left_motor.angle()
 
         # Put the equation here - -0.318 + 0.0213x + -1.28E-05x^2 + -5.39E-08x^3 + 8.66E-11x^4 + -3.54E-14x^5
-        target_angle = -0.318 + 0.0213x + -1.28E-05x^2 + -5.39E-08x^3 + 8.66E-11x^4 + -3.54E-14x^5 
+        target_angle = -0.318 + 0.0213*x + -1.28E-05*x**2 + -5.39E-08*x**3 + 8.66E-11*x**4 + -3.54E-14*x**5
         
         # Calculate the steering error
         current_angle = hub.imu.heading()
