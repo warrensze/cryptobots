@@ -27,8 +27,8 @@ RIGHT_DRIVE_MOTOR_PORT = port.F
 
 # Change these if one wheel counts backward when the robot is pushed forward.
 # Common configuration: motors are wired in opposite polarity, so directions differ.
-LEFT_DRIVE_MOTOR_DIRECTION = 1
-RIGHT_DRIVE_MOTOR_DIRECTION = -1
+LEFT_DRIVE_MOTOR_DIRECTION = -1
+RIGHT_DRIVE_MOTOR_DIRECTION = 1
 
 # Motor pair used by autonomous navigation.
 DRIVE_PAIR = motor_pair.PAIR_1
@@ -111,7 +111,7 @@ MAX_ROWS_PER_LOG = 8000
 LOG_FILE = "robot_log.csv"
 
 # Autonomous navigation settings.
-# Uses equation6.txt: y = 0.353 + 0.132x + 2.72E-03x^2 + 1.45E-05x^3 + 2.71E-08x^4 + 1.59E-11x^5
+# The target angle equation is defined in target_angle_raw() below.
 # where x = distance_mm (0-300).
 AUTO_TARGET_DISTANCE_MM = 300
 AUTO_TREND_MIN_DISTANCE_MM = 0
@@ -128,22 +128,17 @@ BUTTON_RELEASE_STABLE_READS = 3
 GYRO_RESET_WAIT_MS = 100
 
 # =============================
-# TRENDLINE EQUATION COPY (for speed ramping in pid_rampdrive / run_pid_straight)
+# TARGET ANGLE EQUATION — paste your equation here
 # =============================
-# y = 0.353 + 0.132x + 2.72E-03x^2 + 1.45E-05x^3 + 2.71E-08x^4 + 1.59E-11x^5  where x = percent (0-100)
-# This is a REUSE of equation6.txt coefficients for speed ramping only.
-# The autonomous navigation curve uses its own copy at raw_target_angle_for_distance
-# where x = distance_mm directly.
+# Replace the return statement with your polynomial. Example:
+#   target_angle = 0.105 + -0.0188*x + 1.39E-04*x*x + ...
+def target_angle_raw(x):
+    """Return the target angle for a given distance x (mm or percent)."""
+    return -0.318 + 0.0213*x + -1.28E-05*x**2 + -5.39E-08*x**3 + 8.66E-11*x**4 + -3.54E-14*x**5
+
 
 def _trendline_raw(x):
-    return (
-        0.353
-        + (0.132 * x)
-        + (2.72E-03 * x * x)
-        + (1.45E-05 * x * x * x)
-        + (2.71E-08 * x * x * x * x)
-        + (1.59E-11 * x * x * x * x * x)
-    )
+    return target_angle_raw(x)
 
 _TRENDLINE_Y0 = _trendline_raw(0.0)
 _TRENDLINE_Y100 = _trendline_raw(100.0)
@@ -715,25 +710,17 @@ def log_drive_row(log, start_ms, left_tracker, right_tracker, gyro_tracker):
 
 
 def raw_target_angle_for_distance(distance_mm):
-    """equation6.txt coefficients negated for left turn: y = -(0.353 + 0.132x + 2.72E-03x^2 + 1.45E-05x^3 + 2.71E-08x^4 + 1.59E-11x^5), x = distance_mm.
-
-    Positive coefficients describe a right turn, but the datalogging training
-    data was a 320-degree LEFT turn (negative gyro). Negating the equation
-    produces negative target angles -> robot turns left.
+    """Return the target angle from the equation at the given distance.
+    
+    The equation defines the desired gyro angle directly. Positive = right turn,
+    negative = left turn, near-zero = straight.
     """
     x = distance_mm
     if x < AUTO_TREND_MIN_DISTANCE_MM:
         x = AUTO_TREND_MIN_DISTANCE_MM
     elif x > AUTO_TREND_MAX_DISTANCE_MM:
         x = AUTO_TREND_MAX_DISTANCE_MM
-    return -(
-        0.353
-        + (0.132 * x)
-        + (2.72E-03 * x * x)
-        + (1.45E-05 * x * x * x)
-        + (2.71E-08 * x * x * x * x)
-        + (1.59E-11 * x * x * x * x * x)
-    )
+    return target_angle_raw(x)
 
 AUTO_TARGET_ANGLE_OFFSET = raw_target_angle_for_distance(0)
 
@@ -870,6 +857,13 @@ async def run_autonomous_navigation(name):
     await wait_for_buttons_released()
     await light_matrix.write("A")
 
+    # Diagnostic: print the equation curve at key distances
+    print("=== EQUATION DIAG ===")
+    for d in [0, 50, 100, 150, 200, 250, 300]:
+        t = target_angle_for_distance(d)
+        print("nav target at", d, "mm:", round(t, 2))
+    print("=== END EQUATION DIAG ===")
+
     await reset_sensors()
     log = make_navigation_log(name)
     left_tracker = MotorTracker(LEFT_DRIVE_MOTOR_PORT, LEFT_DRIVE_MOTOR_DIRECTION)
@@ -877,18 +871,20 @@ async def run_autonomous_navigation(name):
     gyro_tracker = GyroTracker()
     start = time.ticks_ms()
 
-    base_speed = 50
-    kp = 5
-    max_correction = 45
-    max_speed = 100
+    base_speed = 200
+    kp = 3
+    max_correction = 120
+    max_speed = 400
     target_distance_mm = AUTO_TARGET_DISTANCE_MM
     speed = base_speed
+    last_print_ms = -1000
 
     try:
         while True:
             left_rel = read_relative_position(LEFT_DRIVE_MOTOR_PORT)
             right_rel = read_relative_position(RIGHT_DRIVE_MOTOR_PORT)
             if left_rel is None or right_rel is None:
+                print("ABORT: motor read failed")
                 break
 
             avg_deg = (abs(left_rel) + abs(right_rel)) // 2
@@ -896,15 +892,18 @@ async def run_autonomous_navigation(name):
             current_angle = gyro_tracker.read_degrees()
 
             if distance_mm >= target_distance_mm:
+                print("DONE: reached", distance_mm, "mm")
                 break
 
             target_angle = target_angle_for_distance(distance_mm)
             error = angle_error(target_angle, current_angle)
+            raw_correction = error * kp * AUTO_STEERING_DIRECTION
             correction = int(limit(
-                error * kp * AUTO_STEERING_DIRECTION,
+                raw_correction,
                 -max_correction,
                 max_correction,
             ))
+            saturated = abs(raw_correction) > max_correction
 
             left_speed = int(limit(speed + correction, -max_speed, max_speed))
             right_speed = int(limit(speed - correction, -max_speed, max_speed))
@@ -915,7 +914,15 @@ async def run_autonomous_navigation(name):
                 target_angle, error, correction,
             )
 
+            now_ms = elapsed_ms(start)
+            if now_ms - last_print_ms >= 200:
+                print("t:", now_ms, "d:", distance_mm, "tgt:", round(target_angle, 1),
+                      "cur:", current_angle, "err:", round(error, 1),
+                      "corr:", correction, "sat!" if saturated else "")
+                last_print_ms = now_ms
+
             if left_pressed() or right_pressed():
+                print("ABORT: button pressed")
                 break
 
             await runloop.sleep_ms(AUTO_SAMPLE_MS)
