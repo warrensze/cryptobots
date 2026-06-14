@@ -20,8 +20,8 @@ try:
     while left_motor.angle() < 2000: # Drive until target distance is reached
         x = left_motor.angle()
 
-        # Put the equation here
-        target_angle = 0.005 * (x**2) - (0.2 * x) + 1.5 
+        # Put the equation here - -0.318 + 0.0213x + -1.28E-05x^2 + -5.39E-08x^3 + 8.66E-11x^4 + -3.54E-14x^5
+        target_angle = -0.318 + 0.0213x + -1.28E-05x^2 + -5.39E-08x^3 + 8.66E-11x^4 + -3.54E-14x^5 
         
         # Calculate the steering error
         current_angle = hub.imu.heading()
