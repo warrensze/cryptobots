@@ -134,7 +134,7 @@ GYRO_RESET_WAIT_MS = 100
 #   target_angle = 0.105 + -0.0188*x + 1.39E-04*x*x + ...
 def target_angle_raw(x):
     """Return the target angle for a given distance x (mm or percent)."""
-    return -0.318 + 0.0213*x + -1.28E-05*x**2 + -5.39E-08*x**3 + 8.66E-11*x**4 + -3.54E-14*x**5
+    return 0 + 0*x + 0*x**2 + 0*x**3 + 0*x**4 + 0*x**5
 
 
 def _trendline_raw(x):
