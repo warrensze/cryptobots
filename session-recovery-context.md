@@ -239,6 +239,26 @@ The correction was applied as `left = speed - correction`, `right = speed + corr
 **Why `angle_error()` works correctly with the wrapped gyro:**
 The polynomial produces unbounded cumulative target angles (~792° at 300mm), while `GyroTracker.read_degrees()` returns a raw ±180° wrapped yaw. `angle_error()` correctly finds the shortest path by subtracting and wrapping to [-180,180], which naturally accounts for the robot's multi-revolution turns.
 
+**Bug 3 — Equation Sign Mismatch (Right Turn vs Left Turn):**
+The equation5.txt coefficients are all positive (`7.57 + 0.755x + ...`), producing POSITIVE target angles which command a RIGHT turn. However, the user's datalogging training data was a LEFT turn (counterclockwise). When the autonomous code ran, the positive equation + inverted steering (Bug 2) made the robot veer hard right and backward — exactly what the user reported as "robot moved backwards to the right."
+
+**Fix:** Negated the return value of `raw_target_angle_for_distance()` (line 723) by wrapping in a leading `-()`. The navigation code now produces negative target angles → proportional controller steers left. The `_trendline_raw` function (speed ramping) is unchanged — its sign cancels out via the normalization ratio.
+
+**Why negation works without affecting speed ramping:**
+`_trendline_raw` is fed into `trendline_speed()` which computes `ratio = (raw - Y0) / YRANGE`. Negating all terms flips both numerator and denominator sign, producing the identical ratio. The speed ramping curve shape is preserved.
+
+**Datalogging correctness verified:**
+- `MotorTracker(LEFT, 1)` and `MotorTracker(RIGHT, -1)` correctly handle the differential-drive polarity (right motor encoder reads negative for forward movement; direction=-1 flips it to positive)
+- `estimate_distance_mm((left_deg + right_deg) // 2)` gives positive distance for forward movement
+- `GyroTracker.read_degrees()` returns raw wrapped yaw; correct for both datalogging and the `angle_error()` wrap handling in navigation
+
+**Complete correction chain:**
+| Issue | Before | After |
+|-------|--------|-------|
+| Speed direction | `speed = -base_speed` (backward) | `speed = base_speed` (forward) |
+| Steering convention | `left=speed-correction, right=speed+correction` | `left=speed+correction, right=speed-correction` |
+| Equation sign | Positive (right turn) | Negated (left turn) |
+
 ## Expected Behavior After Upload
 
 1. **Manual Datalogging:** Push robot forward → distance increases smoothly (not 0/-1 bouncing)

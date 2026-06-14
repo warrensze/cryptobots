@@ -111,7 +111,7 @@ MAX_ROWS_PER_LOG = 8000
 LOG_FILE = "robot_log.csv"
 
 # Autonomous navigation settings.
-# Uses equation5.txt: y = 7.57 + 0.755x + 4.26E-03x^2 + 5.82E-06x^3 + 2.25E-09x^4
+# Uses equation6.txt: y = 0.353 + 0.132x + 2.72E-03x^2 + 1.45E-05x^3 + 2.71E-08x^4 + 1.59E-11x^5
 # where x = distance_mm (0-300).
 AUTO_TARGET_DISTANCE_MM = 300
 AUTO_TREND_MIN_DISTANCE_MM = 0
@@ -130,18 +130,19 @@ GYRO_RESET_WAIT_MS = 100
 # =============================
 # TRENDLINE EQUATION COPY (for speed ramping in pid_rampdrive / run_pid_straight)
 # =============================
-# y = 7.57 + 0.755x + 4.26E-03x^2 + 5.82E-06x^3 + 2.25E-09x^4  where x = percent (0-100)
-# This is a REUSE of equation5.txt coefficients for speed ramping only.
+# y = 0.353 + 0.132x + 2.72E-03x^2 + 1.45E-05x^3 + 2.71E-08x^4 + 1.59E-11x^5  where x = percent (0-100)
+# This is a REUSE of equation6.txt coefficients for speed ramping only.
 # The autonomous navigation curve uses its own copy at raw_target_angle_for_distance
 # where x = distance_mm directly.
 
 def _trendline_raw(x):
     return (
-        7.57
-        + (0.755 * x)
-        + (4.26E-03 * x * x)
-        + (5.82E-06 * x * x * x)
-        + (2.25E-09 * x * x * x * x)
+        0.353
+        + (0.132 * x)
+        + (2.72E-03 * x * x)
+        + (1.45E-05 * x * x * x)
+        + (2.71E-08 * x * x * x * x)
+        + (1.59E-11 * x * x * x * x * x)
     )
 
 _TRENDLINE_Y0 = _trendline_raw(0.0)
@@ -687,7 +688,7 @@ class GyroTracker:
 
 
 def estimate_distance_mm(left_deg, right_deg):
-    average_degrees = (left_deg + right_deg) // 2
+    average_degrees = (abs(left_deg) + abs(right_deg)) // 2
     return (average_degrees * WHEEL_CIRCUMFERENCE_MM) // 360
 
 
@@ -714,18 +715,24 @@ def log_drive_row(log, start_ms, left_tracker, right_tracker, gyro_tracker):
 
 
 def raw_target_angle_for_distance(distance_mm):
-    """equation5.txt: y = 7.57 + 0.755x + 4.26E-03x^2 + 5.82E-06x^3 + 2.25E-09x^4, x = distance_mm."""
+    """equation6.txt coefficients negated for left turn: y = -(0.353 + 0.132x + 2.72E-03x^2 + 1.45E-05x^3 + 2.71E-08x^4 + 1.59E-11x^5), x = distance_mm.
+
+    Positive coefficients describe a right turn, but the datalogging training
+    data was a 320-degree LEFT turn (negative gyro). Negating the equation
+    produces negative target angles -> robot turns left.
+    """
     x = distance_mm
     if x < AUTO_TREND_MIN_DISTANCE_MM:
         x = AUTO_TREND_MIN_DISTANCE_MM
     elif x > AUTO_TREND_MAX_DISTANCE_MM:
         x = AUTO_TREND_MAX_DISTANCE_MM
-    return (
-        7.57
-        + (0.755 * x)
-        + (4.26E-03 * x * x)
-        + (5.82E-06 * x * x * x)
-        + (2.25E-09 * x * x * x * x)
+    return -(
+        0.353
+        + (0.132 * x)
+        + (2.72E-03 * x * x)
+        + (1.45E-05 * x * x * x)
+        + (2.71E-08 * x * x * x * x)
+        + (1.59E-11 * x * x * x * x * x)
     )
 
 AUTO_TARGET_ANGLE_OFFSET = raw_target_angle_for_distance(0)
