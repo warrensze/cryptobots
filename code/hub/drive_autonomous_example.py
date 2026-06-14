@@ -26,7 +26,7 @@ try:
         # 2. Run polynomial math equation route 
         # Put the equation here - -0.318 + 0.0213x + -1.28E-05x^2 + -5.39E-08x^3 + 8.66E-11x^4 + -3.54E-14x^5
         #target_angle = -4.68 + -0.0871*x + 1.72E-03*x**2 + -4.64E-06*x**3 + 4.23E-09*x**4 + -1.25E-12*x**5
-        target_angle = -1 * (-0.715 + -0.071*x + 2.09E-03*x**2 + -5.92E-06*x**3 + 5.58E-09*x**4 + -1.72E-12*x**5)  # left then right curve
+        target_angle = -1 * (-19.5 + 0.942*x + -4.76E-03*x**2 + 7E-06*x**3 + -3.94E-09*x**4 + 7.61E-13*x**5)  # left then right curve
         fit_R2 = 0.987  # Assuming a perfect fit for simplicity
 
         # Add this in if you just want to drive straight during these distances
