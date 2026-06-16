@@ -15,25 +15,31 @@ robot = DriveBase(left_motor, right_motor, wheel_diameter=56, axle_track=120)
 robot.reset()
 hub.imu.reset_heading(0)
 
-base_speed = 140 
+base_speed = 360 
 proportional_gain = 8.0  
 
 try:
-    while robot.distance() < 1376: # Drive for mm
+    while robot.distance() < 1567: # Drive for mm
         # 1. Convert mm to cm to prevent numbers from blowing up
         x = robot.distance() / 1.0
         
         # 2. Run polynomial math equation route 
         # Put the equation here - -0.318 + 0.0213x + -1.28E-05x^2 + -5.39E-08x^3 + 8.66E-11x^4 + -3.54E-14x^5
         #target_angle = -4.68 + -0.0871*x + 1.72E-03*x**2 + -4.64E-06*x**3 + 4.23E-09*x**4 + -1.25E-12*x**5
-        target_angle = -1 * (0.651 + 0.0808*x + -2.51E-04*x**2 + 2.47E-07*x**3 + -2.22E-11*x**4 + -5.18E-14*x**5)  # left then right curve
-        fit_R2 = 0.993  # Assuming a perfect fit for simplicity
+        target_angle = -1 * (-0.192 + -0.0244*x + 2.08E-05*x**2 + 5.16E-08*x**3 + -7.09E-11*x**4 + 2.29E-14*x**5)  # left then right curve
+        fit_R2 = 0.869  # Assuming a perfect fit for simplicity
 
         # Add this in if you just want to drive straight during these distances
-        if x <= 170:
+        if x <= 15:
             target_angle = 0.0  # Drive straight at the beginning and end of the path
+            base_speed = 140
+        elif x >= 1367:
+            target_angle = 0.0  # Drive straight at the beginning and end of the path
+            base_speed = 140
         else:
             target_angle = target_angle * fit_R2  # Scale the target angle by the R² value to improve accuracy
+            base_speed = 360 
+
 
         # 3. Calculate steering corrections
         current_angle = hub.imu.heading()
