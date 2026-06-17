@@ -1,5 +1,7 @@
 # SPIKE Prime Datalogging Plan
 
+> **Note (2026-06-17):** A parallel Pybricks track has been planned. See `session-recovery-context.md` → "Session 2026-06-17 — Pybricks Datalogging Planning Direction" for the full analysis. The Pybricks version ports the datalogging infrastructure from `code/hub/main.py` into `code/hub/pybricks_datalog.py`, adapted to the Pybricks API while preserving the exact same output format. This file documents the original stock-SPIKE plan; the Pybricks plan is tracked in the session context.
+
 ## Goal
 
 Create a datalogging workflow for a LEGO SPIKE Prime robot using regular LEGO SPIKE Prime MicroPython and Visual Studio Code, without Pybricks.

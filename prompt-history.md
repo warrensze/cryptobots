@@ -272,6 +272,24 @@ Change the navigation data to go according to the equation. Also, for some reaso
 also, add all my prompts and the sessions context into the prompt history and session context files
 ```
 
+## Prompt 46
+
+```text
+take a look at cyrptobots/code/hub/main.py and find the code that does the datalogging. Then take a look at pybricks_datalog.py and plan out how to enhance pybricks_datalog with the datalogging set up we have in main.py. Do not include in the plan any code we don't need from main.py
+```
+
+## Prompt 47
+
+```text
+Now, do not build anythihng, just plan. First, analyze and understand how the cryptobots hub main.py works and the logic behind it. Look for anything unnecessary to the datalogging of the robot. Now, I want you to plan, think deeply, and plan a pybricks version of the datalogging code in cryptobots code hub main.py, without any extra fluff, and it should work the same. Dont change anything just plan.
+```
+
+## Prompt 48
+
+```text
+now update the context.md files and promt history.md files so that they cover everything that we just talked about and will talk about in the future.
+```
+
 ## Notes
 
 The current implementation focus is one-run-at-a-time manual drive datalogging on SPIKE Prime using stock LEGO MicroPython. The hub stores one run, writes a hub backup file, prints tagged collector rows, and also prints a plain CSV fallback with columns `time,distance,gyro_angle`. The saved run remains available after dumping and is cleared/replaced when a new recording starts. Autonomous navigation starts when the color sensor on port `D` sees red, replacing the older two-button start. The autonomous equation is used as a relative heading curve, gyro readings now avoid switching sources mid-run, and steering gain was reduced after analyzing a jerky autonomous run. The collector saves CSV files into `code/logs/`, saves raw readable serial output when serial data arrives but no CSV is produced, and can decode XOR-3 hub output. A decoded debug file showed a hub `MemoryError` while dumping, so hub output is now streamed instead of building a large dump list in memory.

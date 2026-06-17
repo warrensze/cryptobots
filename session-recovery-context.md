@@ -264,3 +264,158 @@ The equation5.txt coefficients are all positive (`7.57 + 0.755x + ...`), produci
 1. **Manual Datalogging:** Push robot forward → distance increases smoothly (not 0/-1 bouncing)
 2. **Arc Movement:** Push in arc → distance increases + gyro changes show curved path
 3. **Autonomous:** Show red → robot moves **forward** following equation curve (not erratic, not backward)
+
+---
+
+## Session 2026-06-17 — Pybricks Datalogging Planning Direction
+
+### Context Shift
+
+The existing `code/hub/main.py` is built for stock SPIKE Prime MicroPython. A new direction has emerged: **create a Pybricks-based datalogger** that ports the datalogging infrastructure from `main.py` into `code/hub/pybricks_datalog.py`, adapting SPIKE API calls to Pybricks equivalents while preserving the exact same output format.
+
+### Current `pybricks_datalog.py` (baseline)
+
+- Simple linear script: 200 samples at 50ms intervals, 3 columns (`Time_ms`, `Distance_mm`, `Gyro_Heading`)
+- Uses `DriveBase.distance()` and `hub.imu.heading()` directly
+- No `DataLog` class, no buffering, no overflow protection, no dual-format dump, no navigation columns
+
+### Analysis of `main.py`'s Datalogging Layered Architecture
+
+The datalogging infrastructure in `code/hub/main.py` breaks down into 8 layers:
+
+| Layer | Lines | Component | Hardware Dep? | Port? |
+|-------|-------|-----------|---------------|-------|
+| 0 | 51–103 | `DataLog` class + `csv_row`/`csv_value` | None (pure Python) | **Verbatim** |
+| 1 | 492–493, 741–752, 685–687 | `elapsed_ms`, `limit`, `round_to_int`, `estimate_distance_mm` | `elapsed_ms` uses `time.ticks_ms` | **Verbatim** (elapsed → StopWatch); **drop `unwrap_delta`** (not needed) |
+| 2 | 571–588 | `read_relative_position`, `read_absolute_position` | SPIKE `motor.relative_position()` / `motor.absolute_position()` | **Exclude** — replaced by `Motor.angle()` |
+| 3 | 563–568 | `configure_motion_sensor` | SPIKE `motion_sensor.set_yaw_face()` | **Exclude** — no Pybricks equivalent |
+| 4 | 600–683 | `MotorTracker`, `GyroTracker`, `UnwrappedYawTracker` | SPIKE motor + motion_sensor APIs | **Adapt:** MotorTracker simplifies (no absolute_position); GyroTracker simplifies to just `hub.imu.heading()` → -180..180 (no integration fallback, no multi-mode state); **drop `UnwrappedYawTracker`** (dead code in main.py) |
+| 5 | 690–709 | `read_drive_state`, `log_drive_row` | None (DataLog API only) | **Verbatim**; **drop `log_navigation_row`** (only needed by autonomous navigation, which is excluded) |
+| 6 | 540–547 | `make_drive_log` | None (DataLog constructor) | **Verbatim**; **drop `make_navigation_log`** (only needed by autonomous navigation) |
+| 7 | 834–853 | `record_motion_log` | Async SPIKE button/light_matrix/runloop | **Adapt:** sync (wait), `hub.buttons.pressed()`, `hub.display.char()` |
+
+### What main.py code is EXCLUDED from the Pybricks port (robot control, not datalogging)
+
+- All PID drive functions (`pid_drive`, `pid_rampdrive`)
+- All gyro turn functions (`gyro_turn`, `gyro_ramp_turn`, `gyro_ramp_turn_correction`)
+- Basic drive functions (`drive_straight`, `drive_time`)
+- Target angle equation (`target_angle_raw`, `trendline_*`, `target_angle_for_distance`, `angle_error`)
+- Drive primitives (`_drive_tank`, `_drive_steering`, `_drive_stop`, `_deg_per_cm`)
+- Autonomous navigation (`run_autonomous_navigation`)
+- PID straight with logging (`run_pid_straight`)
+- Motor control (`drive_motors`, `stop_drive_motors`, `apply_proportional_drive`)
+- Button/color sensor logic (`left_pressed`, `right_pressed`, `both_pressed`, `wait_for_buttons_released`, `autonomous_start_seen`, `main()` loop)
+- File persistence (`write_log_to_file`, `persist_log`, `clear_persisted_log`, `persisted_log_exists`, `dump_persisted_log`)
+- All `AUTO_*` configuration constants and `SAMPLE_MS`, `MAX_ROWS_PER_LOG`, `LOG_FILE`
+- `configure_motion_sensor`, `reset_sensors`
+- `saved_log` global
+
+**Additional exclusions identified during simplification review:**
+- `unwrap_delta` — only used by SPIKE MotorTracker's absolute-position logic; Pybricks MotorTracker uses `Motor.angle()` directly
+- `UnwrappedYawTracker` — defined but never called in main.py (dead code; `wait_for_gyro_settle()` referenced inside it is also undefined)
+- `log_navigation_row` — only called by `run_autonomous_navigation()` and `run_pid_straight()`, which are both excluded
+- `make_navigation_log` — same reason as `log_navigation_row`
+- `motor.absolute_position()` / `read_absolute_position` — not available in Pybricks API
+
+### API Mapping: SPIKE → Pybricks
+
+| SPIKE Prime | Pybricks | Notes |
+|---|---|---|---|
+| `motor.relative_position(Port)` | `Motor.angle()` | Simplifies MotorTracker — no absolute_position needed |
+| `motor.absolute_position(Port)` | N/A | **Exclude** — not available in Pybricks; MotorTracker drops all absolute-position logic |
+| `motion_sensor.tilt_angles()[0]` (ddeg, -1800..1800 wraps) | `hub.imu.heading()` (deg, 0..360 wraps) | Convert to -180..180 range to match SPIKE's wrapped yaw; no accumulation needed |
+| `motion_sensor.angular_velocity(False)` | `hub.imu.angular_velocity()` (deg/s tuple) | **Exclude** — integration fallback is overcomplicated for Pybricks; `hub.imu.heading()` is reliable |
+| `motion_sensor.reset_yaw(0)` | `hub.imu.reset_heading(0)` | Same concept |
+| `motor.reset_relative_position(port, 0)` | `Motor.reset_angle(0)` | Used for sensor zeroing |
+| `motor.run(port, speed)` | `Motor.run(speed)` | Not needed for pure datalogging |
+| `motor.stop(port, mode)` | `Motor.stop()` | Not needed |
+| `runloop.sleep_ms(ms)` | `wait(ms)` | Sync vs async — all recording becomes synchronous |
+| `time.ticks_ms()` / `time.ticks_diff()` | `StopWatch.time()` or `time.ticks_ms()` | Either works; StopWatch is idiomatic Pybricks |
+| `button.pressed(button.LEFT)` | `hub.buttons.pressed()` | Returns which buttons are pressed |
+| `light_matrix.write("R")` | `hub.display.char("R")` | Display feedback |
+| `port.B`, `port.F` | `Port.B`, `Port.F` | Different module, same port names |
+| `os.remove()` / `open()` | `os.remove()` / `open()` | File I/O similar if needed |
+
+### Pybricks MotorTracker Simplification
+
+The SPIKE MotorTracker uses both relative and absolute positions because SPIKE's relative position can reset mid-run. Pybricks `Motor.angle()` is internally continuous (32-bit signed integer since initialization/reset), so the absolute-position complexity drops:
+
+```
+SPIKE MotorTracker (24 lines):
+  - constructor: stores motor_port, direction, absolute_previous, absolute_total
+  - read_degrees():
+    - reads relative AND absolute every call
+    - unwraps absolute via unwrap_delta
+    - falls back to absolute_total if relative is None or reset to 0
+    - applies direction multiplier
+
+Pybricks MotorTracker (~7 lines):
+  - constructor: stores Motor object, direction
+  - read_degrees():
+    - return self.motor.angle() * self.direction
+```
+
+### Pybricks GyroTracker — Simplified to Range Conversion Only
+
+SPIKE's `GyroTracker.read_degrees()` returns the raw wrapped yaw from `tilt_angles()[0] // 10` in the range -179..179 (no accumulation, no unwrapping). Pybricks `hub.imu.heading()` returns 0..359.
+
+The Pybricks version does NOT need the SPIKE GyroTracker's complexity:
+- **No integration fallback**: `hub.imu.heading()` is very reliable in Pybricks; the SPIKE fallback existed because `tilt_angles()` can occasionally throw on some firmware versions.
+- **No `use_tilt_angles` state flag**: only one path.
+- **No `last_ms` / `integrated_mdeg` tracking**: no integration state needed.
+- **No `angular_velocity` import**: not needed.
+
+The entire GyroTracker reduces to:
+```
+class GyroTracker:
+    def read_degrees(self):
+        heading = hub.imu.heading()
+        if heading > 180:
+            heading -= 360
+        return heading
+```
+
+This produces the same wrapped -180..180 range as SPIKE's `tilt_angles()[0] // 10`.
+
+### Planned Pybricks Datalogger Structure
+
+```
+# Robot Configuration (user-editable)
+#   Pybricks Motor/Port assignments, wheel circumference, direction multipliers
+
+# Layer 0: DataLog class + csv_row/csv_value (verbatim from main.py)
+
+# Layer 1: Utilities: limit, round_to_int, estimate_distance_mm (verbatim)
+#          elapsed_ms → StopWatch-based or time.ticks_ms helper
+#          (unwrap_delta NOT ported — not needed)
+
+# Layer 2: MotorTracker (simplified, wraps Motor.angle() + direction)
+#          GyroTracker (simplified: hub.imu.heading() → -180..180 range conversion only;
+#                       no integration fallback, no multi-mode state)
+
+# Layer 3: read_drive_state, log_drive_row (verbatim)
+#          make_drive_log (verbatim)
+#          (log_navigation_row and make_navigation_log NOT ported — autonomous only)
+
+# Layer 4: record_motion_log (sync version: wait() instead of runloop.sleep_ms,
+#          hub.buttons.pressed() instead of button.pressed(),
+#          hub.display.char() instead of light_matrix.write())
+
+# Layer 5: main() — init hub + motors, button-triggered recording, log.dump()
+```
+
+### Key Behavioral Invariants (must match main.py)
+
+- `DataLog.dump()` output format is identical (tagged CBLOG_* + raw CSV, same headers)
+- `DataLog.log()` respects max_rows and tracks dropped rows
+- `MotorTracker.read_degrees() * direction` produces same signed values
+- `estimate_distance_mm()` uses `WHEEL_CIRCUMFERENCE_MM` same formula
+- `log_drive_row` produces `(time, distance, gyro_angle)` columns
+- Gyro output is in -180..180 wrapped degrees (same as SPIKE's `tilt_angles()[0] // 10`)
+- `record_motion_log` samples at configurable interval, stops on button press, returns DataLog
+
+### Not Yet Decided
+
+- Whether to keep `DriveBase` or use individual motors (DriveBase gives composite distance, but loses per-motor raw data; for matching main.py exactly, individual motors are required)
+- Whether to include file persistence (Pybricks can write files, but the original `.dump(print)` workflow is simpler for BLE collection)
+- Whether to include a button-controlled recording loop or keep the script as a callable library
