@@ -273,6 +273,16 @@ The equation5.txt coefficients are all positive (`7.57 + 0.755x + ...`), produci
 
 The existing `code/hub/main.py` is built for stock SPIKE Prime MicroPython. A new direction has emerged: **create a Pybricks-based datalogger** that ports the datalogging infrastructure from `main.py` into `code/hub/pybricks_datalog.py`, adapting SPIKE API calls to Pybricks equivalents while preserving the exact same output format.
 
+### Implementation Status
+
+The Pybricks datalogger has been **implemented** in a separate repo location:
+`FLL-Python-Library-/Pybricks-Code/pybricks_datalog.py`
+
+See the companion context file at:
+`FLL-Python-Library-/Pybricks-Code/context.md`
+
+That file documents all implementation details, deviations from the plan, and the current state. This section (lines 270+) remains as the original planning analysis; the implementation context lives in the Pybricks-Code folder.
+
 ### Current `pybricks_datalog.py` (baseline)
 
 - Simple linear script: 200 samples at 50ms intervals, 3 columns (`Time_ms`, `Distance_mm`, `Gyro_Heading`)
